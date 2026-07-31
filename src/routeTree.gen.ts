@@ -14,10 +14,12 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as MerchantIndexRouteImport } from './routes/merchant.index'
 import { Route as MerchantApplyRouteImport } from './routes/merchant.apply'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders.$orderId'
+import { Route as RiderIndexRouteImport } from './routes/rider.index'
 import { Route as RiderApplyRouteImport } from './routes/rider.apply'
 import { Route as StoreMerchantIdRouteImport } from './routes/store.$merchantId'
 
@@ -46,6 +48,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MerchantIndexRoute = MerchantIndexRouteImport.update({
   id: '/merchant/',
   path: '/merchant/',
@@ -64,6 +71,11 @@ const OrdersIndexRoute = OrdersIndexRouteImport.update({
 const OrdersOrderIdRoute = OrdersOrderIdRouteImport.update({
   id: '/orders/$orderId',
   path: '/orders/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RiderIndexRoute = RiderIndexRouteImport.update({
+  id: '/rider/',
+  path: '/rider/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RiderApplyRoute = RiderApplyRouteImport.update({
@@ -87,8 +99,10 @@ export interface FileRoutesByFullPath {
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/rider/apply': typeof RiderApplyRoute
   '/store/$merchantId': typeof StoreMerchantIdRoute
+  '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/orders/': typeof OrdersIndexRoute
+  '/rider/': typeof RiderIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -100,8 +114,10 @@ export interface FileRoutesByTo {
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/rider/apply': typeof RiderApplyRoute
   '/store/$merchantId': typeof StoreMerchantIdRoute
+  '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
   '/orders': typeof OrdersIndexRoute
+  '/rider': typeof RiderIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -114,8 +130,10 @@ export interface FileRoutesById {
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/rider/apply': typeof RiderApplyRoute
   '/store/$merchantId': typeof StoreMerchantIdRoute
+  '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/orders/': typeof OrdersIndexRoute
+  '/rider/': typeof RiderIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,8 +147,10 @@ export interface FileRouteTypes {
     | '/orders/$orderId'
     | '/rider/apply'
     | '/store/$merchantId'
+    | '/admin/'
     | '/merchant/'
     | '/orders/'
+    | '/rider/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,8 +162,10 @@ export interface FileRouteTypes {
     | '/orders/$orderId'
     | '/rider/apply'
     | '/store/$merchantId'
+    | '/admin'
     | '/merchant'
     | '/orders'
+    | '/rider'
   id:
     | '__root__'
     | '/'
@@ -155,8 +177,10 @@ export interface FileRouteTypes {
     | '/orders/$orderId'
     | '/rider/apply'
     | '/store/$merchantId'
+    | '/admin/'
     | '/merchant/'
     | '/orders/'
+    | '/rider/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -169,8 +193,10 @@ export interface RootRouteChildren {
   OrdersOrderIdRoute: typeof OrdersOrderIdRoute
   RiderApplyRoute: typeof RiderApplyRoute
   StoreMerchantIdRoute: typeof StoreMerchantIdRoute
+  AdminIndexRoute: typeof AdminIndexRoute
   MerchantIndexRoute: typeof MerchantIndexRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
+  RiderIndexRoute: typeof RiderIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -210,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/merchant/': {
       id: '/merchant/'
       path: '/merchant'
@@ -236,6 +269,13 @@ declare module '@tanstack/react-router' {
       path: '/orders/$orderId'
       fullPath: '/orders/$orderId'
       preLoaderRoute: typeof OrdersOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rider/': {
+      id: '/rider/'
+      path: '/rider'
+      fullPath: '/rider/'
+      preLoaderRoute: typeof RiderIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rider/apply': {
@@ -265,8 +305,10 @@ const rootRouteChildren: RootRouteChildren = {
   OrdersOrderIdRoute: OrdersOrderIdRoute,
   RiderApplyRoute: RiderApplyRoute,
   StoreMerchantIdRoute: StoreMerchantIdRoute,
+  AdminIndexRoute: AdminIndexRoute,
   MerchantIndexRoute: MerchantIndexRoute,
   OrdersIndexRoute: OrdersIndexRoute,
+  RiderIndexRoute: RiderIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

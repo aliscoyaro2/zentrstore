@@ -91,9 +91,14 @@ function RiderDashboard() {
   }
 
   async function advance(orderId: string, status: string) {
-    const patch: Record<string, unknown> = { status };
-    if (status === "delivered") patch.delivered_at = new Date().toISOString();
-    const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
+    const { error } = await supabase
+      .from("orders")
+      .update(
+        status === "delivered"
+          ? { status: "delivered" as const, delivered_at: new Date().toISOString() }
+          : { status: status as "rider_en_route_to_merchant" | "picked_up" | "rider_en_route_to_customer" },
+      )
+      .eq("id", orderId);
     if (error) toast.error("Update failed", { description: error.message });
     else await jobs.refetch();
   }
