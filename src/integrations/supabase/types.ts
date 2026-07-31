@@ -664,18 +664,24 @@ export type Database = {
           boundary: Json | null
           created_at: string | null
           id: string
+          lat: number | null
+          lng: number | null
           name: string
         }
         Insert: {
           boundary?: Json | null
           created_at?: string | null
           id?: string
+          lat?: number | null
+          lng?: number | null
           name: string
         }
         Update: {
           boundary?: Json | null
           created_at?: string | null
           id?: string
+          lat?: number | null
+          lng?: number | null
           name?: string
         }
         Relationships: []
