@@ -30,7 +30,7 @@ export const Route = createFileRoute("/addresses")({
 });
 
 function AddressesPage() {
-  const { user } = useSession();
+  const { user, loading } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -41,6 +41,20 @@ function AddressesPage() {
     lat: 0,
     lng: 0,
   });
+
+  // Still checking for an existing session — don't redirect yet
+  if (loading) {
+    return (
+      <Screen>
+        <PageHeader title="My Addresses" />
+        <div className="px-4 py-6">
+          <Panel className="p-8 text-center">
+            <div className="animate-pulse">Loading...</div>
+          </Panel>
+        </div>
+      </Screen>
+    );
+  }
 
   // Redirect if not logged in
   if (!user) {
