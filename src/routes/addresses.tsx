@@ -42,34 +42,15 @@ function AddressesPage() {
     lng: 0,
   });
 
-  // Still checking for an existing session — don't redirect yet
-  if (loading) {
-    return (
-      <Screen>
-        <PageHeader title="My Addresses" />
-        <div className="px-4 py-6">
-          <Panel className="p-8 text-center">
-            <div className="animate-pulse">Loading...</div>
-          </Panel>
-        </div>
-      </Screen>
-    );
-  }
-
-  // Redirect if not logged in
-  if (!user) {
-    navigate({ to: "/login" });
-    return null;
-  }
-
-  // ── Fetch addresses ──
+  // ── Fetch addresses ── (hooks must run unconditionally, before any early return)
   const addresses = useQuery({
-    queryKey: ["addresses", user.id],
+    queryKey: ["addresses", user?.id],
+    enabled: Boolean(user),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("addresses")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .order("is_default", { ascending: false })
         .order("created_at", { ascending: true });
 
@@ -86,6 +67,7 @@ function AddressesPage() {
       lat: number;
       lng: number;
     }) => {
+      if (!user) throw new Error("Not signed in");
       // If this is the first address, make it default
       const existingAddresses = addresses.data || [];
       const isFirst = existingAddresses.length === 0;
@@ -103,7 +85,7 @@ function AddressesPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["addresses", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["addresses", user?.id] });
       setShowForm(false);
       resetForm();
     },
@@ -128,6 +110,7 @@ function AddressesPage() {
       lat: number;
       lng: number;
     }) => {
+      if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
         .from("addresses")
         .update({ label, formatted, lat, lng })
@@ -138,7 +121,7 @@ function AddressesPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["addresses", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["addresses", user?.id] });
       setEditingId(null);
       resetForm();
     },
@@ -151,6 +134,7 @@ function AddressesPage() {
   // ── Set default address ──
   const setDefault = useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not signed in");
       // First, unset all addresses for this user
       await supabase
         .from("addresses")
@@ -168,13 +152,14 @@ function AddressesPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["addresses", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["addresses", user?.id] });
     },
   });
 
   // ── Delete address ──
   const deleteAddress = useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not signed in");
       const { error } = await supabase
         .from("addresses")
         .delete()
@@ -184,13 +169,33 @@ function AddressesPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["addresses", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["addresses", user?.id] });
     },
     onError: (error) => {
       console.error("Error deleting address:", error);
       alert("Could not delete address. Please try again.");
     },
   });
+
+  // Still checking for an existing session — don't redirect yet
+  if (loading) {
+    return (
+      <Screen>
+        <PageHeader title="My Addresses" />
+        <div className="px-4 py-6">
+          <Panel className="p-8 text-center">
+            <div className="animate-pulse">Loading...</div>
+          </Panel>
+        </div>
+      </Screen>
+    );
+  }
+
+  // Redirect if not logged in
+  if (!user) {
+    navigate({ to: "/login" });
+    return null;
+  }
 
   const resetForm = () => {
     setFormData({ label: "", formatted: "", lat: 0, lng: 0 });
