@@ -61,7 +61,7 @@ function LoginPage() {
     if (data.user) {
       await supabase
         .from("profiles")
-        .upsert({ id: data.user.id, email: data.user.email }, { onConflict: "id" });
+        .upsert({ id: data.user.id, email: data.user.email ?? null }, { onConflict: "id" });
     }
     setBusy(false);
     navigate({ to: "/" });

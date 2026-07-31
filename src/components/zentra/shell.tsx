@@ -27,9 +27,9 @@ export function PageHeader({
   right,
 }: {
   title: string;
-  subtitle?: string;
-  back?: string;
-  right?: ReactNode;
+  subtitle?: string | undefined;
+  back?: string | undefined;
+  right?: ReactNode | undefined;
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/90 px-4 py-3 backdrop-blur-md">
