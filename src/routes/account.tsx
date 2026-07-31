@@ -3,13 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   User,
   MapPin,
-  CreditCard,
   Package,
-  Heart,
   Store,
   Bike,
   Headphones,
-  Settings,
+  Settings as SettingsIcon,
   Info,
   LogOut,
   ChevronRight,
@@ -27,8 +25,6 @@ export const Route = createFileRoute("/account")({
         name: "description",
         content: "Manage your Zentra account and settings.",
       },
-      { property: "og:title", content: "Your Zentra profile" },
-      { property: "og:description", content: "Customer, merchant and rider access in one place." },
     ],
   }),
   component: AccountPage,
@@ -38,6 +34,7 @@ function AccountPage() {
   const { user, loading } = useSession();
   const navigate = useNavigate();
 
+  // ── Profile ──
   const profile = useQuery({
     queryKey: ["profile", user?.id],
     enabled: Boolean(user),
@@ -52,6 +49,7 @@ function AccountPage() {
     },
   });
 
+  // ── Merchant application status ──
   const merchantApp = useQuery({
     queryKey: ["merchantApp", user?.id],
     enabled: Boolean(user),
@@ -66,6 +64,7 @@ function AccountPage() {
     },
   });
 
+  // ── Rider application status ──
   const riderApp = useQuery({
     queryKey: ["riderApp", user?.id],
     enabled: Boolean(user),
@@ -90,6 +89,7 @@ function AccountPage() {
     navigate({ to: "/" });
   };
 
+  // ── Not signed in ──
   if (!user && !loading) {
     return (
       <Screen>
@@ -119,8 +119,7 @@ function AccountPage() {
     <Screen>
       <PageHeader title="Your profile" subtitle="Manage your account" />
       <div className="space-y-6 px-4 py-6 pb-24">
-
-        {/* Profile Card */}
+        {/* ── Profile Card ── */}
         <Panel className="p-5">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-2xl font-bold text-primary shrink-0">
@@ -149,7 +148,7 @@ function AccountPage() {
           </div>
         </Panel>
 
-        {/* Pending Alerts */}
+        {/* ── Pending alerts ── */}
         {merchantStatus === "pending" && (
           <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-700">
             ⏳ Your merchant application is pending admin approval.
@@ -161,16 +160,14 @@ function AccountPage() {
           </div>
         )}
 
-        {/* Main Menu */}
+        {/* ── Main Menu ── */}
         <div className="space-y-1">
           <MenuItem to="/addresses" icon={<MapPin className="size-5" />} label="My Addresses" />
-          <MenuItem to="/payment-methods" icon={<CreditCard className="size-5" />} label="Payment Methods" />
           <MenuItem to="/orders" icon={<Package className="size-5" />} label="My Orders" />
-          <MenuItem to="/favorites" icon={<Heart className="size-5" />} label="Favorites" />
-          {/* Promotions removed */}
+          {/* Payment Methods & Favorites skipped */}
         </div>
 
-        {/* Business Section */}
+        {/* ── Business Section ── */}
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1 mb-2">
             Business
@@ -194,19 +191,19 @@ function AccountPage() {
           </div>
         </div>
 
-        {/* Support & Settings */}
+        {/* ── Support Section ── */}
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-1 mb-2">
             Support
           </p>
           <div className="space-y-1">
             <MenuItem to="/help" icon={<Headphones className="size-5" />} label="Help Center" />
-            <MenuItem to="/settings" icon={<Settings className="size-5" />} label="Settings" />
+            <MenuItem to="/settings" icon={<SettingsIcon className="size-5" />} label="Settings" />
             <MenuItem to="/about" icon={<Info className="size-5" />} label="About" />
           </div>
         </div>
 
-        {/* Sign Out */}
+        {/* ── Sign Out ── */}
         <button
           type="button"
           onClick={handleSignOut}
@@ -220,7 +217,7 @@ function AccountPage() {
         </button>
       </div>
 
-      {/* Bottom Navigation */}
+      {/* ── Bottom Navigation ── */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-card py-2 px-4 flex justify-around max-w-md mx-auto">
         <Link to="/" className="text-center text-sm text-muted-foreground hover:text-primary transition">
           Explore
@@ -239,6 +236,7 @@ function AccountPage() {
   );
 }
 
+// ── Menu Item Component ──
 function MenuItem({
   to,
   icon,
