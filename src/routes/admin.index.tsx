@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
 import { statusLabel } from "@/components/zentra/status-rail";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { categoryLabel } from "@/lib/categories";
 import { naira } from "@/lib/money";
 
@@ -26,14 +27,16 @@ export const Route = createFileRoute("/admin/")({
 type Tab = "approvals" | "dispatch" | "money";
 
 function AdminPage() {
+  const { ready } = useRoleGuard("admin");
   const [tab, setTab] = useState<Tab>("approvals");
 
   const merchants = useQuery({
     queryKey: ["admin-merchants"],
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
-        .select("id,business_name,category,status,address_text")
+        .select("id,owner_id,business_name,category,status,address_text")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -42,6 +45,7 @@ function AdminPage() {
 
   const riders = useQuery({
     queryKey: ["admin-riders"],
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("riders")
@@ -54,6 +58,7 @@ function AdminPage() {
 
   const orders = useQuery({
     queryKey: ["admin-orders"],
+    enabled: ready,
     refetchInterval: 20000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -70,14 +75,41 @@ function AdminPage() {
 
   async function setMerchantStatus(id: string, status: "approved" | "suspended") {
     const { error } = await supabase.from("merchants").update({ status }).eq("id", id);
-    if (error) toast.error("Not allowed", { description: error.message });
-    else await merchants.refetch();
+    if (error) {
+      toast.error("Not allowed", { description: error.message });
+      return;
+    }
+    // Accounts are strictly single-purpose on Zentra: once someone's store
+    // is approved, their account becomes a merchant account and they'll be
+    // routed to the merchant dashboard from here on, not the customer app.
+    if (status === "approved") {
+      const ownerId = merchants.data?.find((m) => m.id === id)?.owner_id;
+      if (ownerId) {
+        const { error: roleError } = await supabase
+          .from("profiles")
+          .update({ role: "merchant" })
+          .eq("id", ownerId);
+        if (roleError) toast.error("Store approved, but role update failed", { description: roleError.message });
+      }
+    }
+    await merchants.refetch();
   }
 
   async function setRiderStatus(id: string, status: "approved" | "suspended") {
     const { error } = await supabase.from("riders").update({ status }).eq("id", id);
-    if (error) toast.error("Not allowed", { description: error.message });
-    else await riders.refetch();
+    if (error) {
+      toast.error("Not allowed", { description: error.message });
+      return;
+    }
+    // riders.id is the same id as profiles.id, so this is the rider's own account.
+    if (status === "approved") {
+      const { error: roleError } = await supabase
+        .from("profiles")
+        .update({ role: "rider" })
+        .eq("id", id);
+      if (roleError) toast.error("Rider approved, but role update failed", { description: roleError.message });
+    }
+    await riders.refetch();
   }
 
   async function assignRider(orderId: string, riderId: string) {
@@ -96,6 +128,8 @@ function AdminPage() {
     (o) => !o.rider_id && ["paid", "merchant_accepted", "preparing"].includes(o.status),
   );
   const approvedRiders = (riders.data ?? []).filter((r) => r.status === "approved");
+
+  if (!ready) return null;
 
   return (
     <Screen>
