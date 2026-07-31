@@ -1,11 +1,11 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
 import { statusLabel } from "@/components/zentra/status-rail";
-import { useSession } from "@/hooks/use-session";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { categoryLabel } from "@/lib/categories";
 import { naira } from "@/lib/money";
 
@@ -27,17 +27,12 @@ export const Route = createFileRoute("/merchant/")({
 const ACTIVE = ["paid", "merchant_accepted", "preparing", "rider_assigned", "picked_up"];
 
 function MerchantDashboard() {
-  const { user, loading } = useSession();
-  const navigate = useNavigate();
+  const { user, ready } = useRoleGuard("merchant");
   const [tab, setTab] = useState<"orders" | "catalogue">("orders");
-
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [loading, user, navigate]);
 
   const store = useQuery({
     queryKey: ["my-store", user?.id],
-    enabled: Boolean(user),
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
@@ -100,7 +95,9 @@ function MerchantDashboard() {
     else await store.refetch();
   }
 
-  if (!loading && user && store.isFetched && !store.data) {
+  if (!ready) return null;
+
+  if (store.isFetched && !store.data) {
     return (
       <Screen>
         <PageHeader title="Merchant" back="/" />
