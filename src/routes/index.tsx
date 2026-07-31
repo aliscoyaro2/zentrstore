@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, ChevronDown, Store, Bike } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CATEGORIES, categoryLabel } from "@/lib/categories";
@@ -10,6 +10,7 @@ import { LandingPage } from "@/components/zentra/landing";
 import { useCart } from "@/lib/cart";
 import { naira } from "@/lib/money";
 import { useSession } from "@/hooks/use-session";
+import { distanceKm } from "@/lib/geo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -52,7 +53,7 @@ function Home() {
 }
 
 function CustomerBrowse() {
-  const [zone, setZone] = useState("GRA Phase 1");
+  const [zoneId, setZoneId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const { cart, count, subtotal } = useCart();
@@ -60,18 +61,29 @@ function CustomerBrowse() {
   const zones = useQuery({
     queryKey: ["zones"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("zones").select("id,name").order("name");
+      const { data, error } = await supabase.from("zones").select("id,name,lat,lng").order("name");
       if (error) throw error;
       return data;
     },
   });
+
+  // Default to the first zone once zones have loaded.
+  useEffect(() => {
+    if (!zoneId && zones.data && zones.data.length > 0) {
+      setZoneId(zones.data[0].id);
+    }
+  }, [zoneId, zones.data]);
+
+  const selectedZone = zones.data?.find((z) => z.id === zoneId) ?? null;
 
   const merchants = useQuery({
     queryKey: ["merchants"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
-        .select("id,business_name,category,address_text,is_open_override,opening_time,closing_time")
+        .select(
+          "id,business_name,category,address_text,is_open_override,opening_time,closing_time,lat,lng,delivery_radius_km",
+        )
         .eq("status", "approved")
         .order("business_name");
       if (error) throw error;
@@ -97,9 +109,18 @@ function CustomerBrowse() {
     },
   });
 
-  const list = useMemo<MerchantSummary[]>(() => {
+  const list = useMemo<(MerchantSummary & { distanceKm?: number | null })[]>(() => {
     const q = query.trim().toLowerCase();
-    return (merchants.data ?? [])
+
+    const withDistance = (merchants.data ?? []).map((m) => {
+      const km =
+        selectedZone && selectedZone.lat != null && selectedZone.lng != null
+          ? distanceKm({ lat: selectedZone.lat, lng: selectedZone.lng }, { lat: m.lat, lng: m.lng })
+          : null;
+      return { ...m, distanceKm: km };
+    });
+
+    return withDistance
       .filter((m) => (category ? m.category === category : true))
       .filter((m) =>
         q
@@ -107,8 +128,11 @@ function CustomerBrowse() {
             categoryLabel(m.category).toLowerCase().includes(q)
           : true,
       )
+      // Only show merchants that can actually deliver to this zone.
+      .filter((m) => (m.distanceKm == null ? true : m.distanceKm <= m.delivery_radius_km))
+      .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
       .map((m) => ({ ...m, fromKobo: prices.data?.get(m.id) ?? null }));
-  }, [merchants.data, prices.data, category, query]);
+  }, [merchants.data, prices.data, category, query, selectedZone]);
 
   return (
     <Screen>
@@ -120,13 +144,13 @@ function CustomerBrowse() {
             </span>
             <div className="relative flex items-center gap-1">
               <select
-                value={zone}
-                onChange={(e) => setZone(e.target.value)}
+                value={zoneId ?? ""}
+                onChange={(e) => setZoneId(e.target.value)}
                 aria-label="Delivery zone"
                 className="appearance-none bg-transparent pr-5 font-display text-lg font-extrabold tracking-tight focus:outline-none"
               >
-                {(zones.data ?? [{ id: "gra", name: "GRA Phase 1" }]).map((z) => (
-                  <option key={z.id} value={z.name}>
+                {(zones.data ?? []).map((z) => (
+                  <option key={z.id} value={z.id}>
                     {z.name}
                   </option>
                 ))}
@@ -200,7 +224,7 @@ function CustomerBrowse() {
 
       <section className="px-4">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl">Open near {zone}</h2>
+          <h2 className="text-xl">Open near {selectedZone?.name ?? "you"}</h2>
           {category ? (
             <button
               type="button"
