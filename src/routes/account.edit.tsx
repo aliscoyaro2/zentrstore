@@ -39,34 +39,15 @@ function EditProfilePage() {
   );
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Still checking for an existing session — don't redirect yet
-  if (loading) {
-    return (
-      <Screen>
-        <PageHeader title="Edit Profile" />
-        <div className="px-4 py-6">
-          <Panel className="p-8 text-center">
-            <div className="animate-pulse">Loading...</div>
-          </Panel>
-        </div>
-      </Screen>
-    );
-  }
-
-  // Redirect if not logged in
-  if (!user) {
-    navigate({ to: "/login" });
-    return null;
-  }
-
-  // ── Fetch current profile ──
+  // ── Fetch current profile ── (hooks must run unconditionally, before any early return)
   const profile = useQuery({
-    queryKey: ["profile", user.id],
+    queryKey: ["profile", user?.id],
+    enabled: Boolean(user),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("full_name, phone, email")
-        .eq("id", user.id)
+        .eq("id", user!.id)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -90,6 +71,7 @@ function EditProfilePage() {
       phone: string;
       photo_url?: string | null;
     }) => {
+      if (!user) throw new Error("Not signed in");
       const updates: any = { full_name, phone };
       if (photo_url !== undefined) {
         updates.photo_url = photo_url;
@@ -101,7 +83,7 @@ function EditProfilePage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
       setSaveStatus("success");
       setTimeout(() => {
         setSaveStatus("idle");
@@ -114,6 +96,25 @@ function EditProfilePage() {
       setTimeout(() => setSaveStatus("idle"), 3000);
     },
   });
+
+  if (loading) {
+    return (
+      <Screen>
+        <PageHeader title="Edit Profile" />
+        <div className="px-4 py-6">
+          <Panel className="p-8 text-center">
+            <div className="animate-pulse">Loading...</div>
+          </Panel>
+        </div>
+      </Screen>
+    );
+  }
+
+  // Redirect if not logged in
+  if (!user) {
+    navigate({ to: "/login" });
+    return null;
+  }
 
   // ── Upload photo to Supabase Storage ──
   const uploadPhoto = async (file: File): Promise<string | null> => {
