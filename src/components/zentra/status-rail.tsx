@@ -39,6 +39,7 @@ export function StatusRail({ status }: { status: string }) {
     <ol className="relative flex flex-col gap-6 pl-8">
       <span className="absolute bottom-2 left-[7px] top-2 w-0.5 bg-border" aria-hidden />
       {ORDER_FLOW.map((step, index) => {
+        const copy = STATUS_COPY[step] ?? { label: step, hint: "" };
         const done = activeIndex > index;
         const current = activeIndex === index;
         return (
@@ -54,9 +55,9 @@ export function StatusRail({ status }: { status: string }) {
                 current ? "text-primary" : done ? "" : "text-muted-foreground"
               }`}
             >
-              {STATUS_COPY[step].label}
+              {copy.label}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{STATUS_COPY[step].hint}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{copy.hint}</p>
           </li>
         );
       })}
