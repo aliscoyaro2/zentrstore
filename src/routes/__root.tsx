@@ -78,15 +78,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Zentra — Maiduguri delivery & local commerce" },
+      { title: "Zentra — order from Maiduguri stores, delivered" },
       {
         name: "description",
         content:
-          "Order from Maiduguri restaurants, home kitchens, pharmacies, water and gas suppliers. Paid online, delivered by local riders.",
+          "Browse GRA and Monday Market merchants: restaurants, home kitchens, pharmacies, water and gas. Pay online, a local rider brings it.",
       },
       { name: "author", content: "Zentra" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:title", content: "Zentra — order from Maiduguri stores, delivered" },
+      { name: "twitter:title", content: "Zentra — order from Maiduguri stores, delivered" },
+      { property: "og:description", content: "Browse GRA and Monday Market merchants: restaurants, home kitchens, pharmacies, water and gas. Pay online, a local rider brings it." },
+      { name: "twitter:description", content: "Browse GRA and Monday Market merchants: restaurants, home kitchens, pharmacies, water and gas. Pay online, a local rider brings it." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b86925e9-af64-439d-b264-6c783db42db4" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b86925e9-af64-439d-b264-6c783db42db4" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -96,7 +102,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,

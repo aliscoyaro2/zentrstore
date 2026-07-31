@@ -18,11 +18,11 @@ export const Route = createFileRoute("/")({
         content:
           "Browse GRA and Monday Market merchants: restaurants, home kitchens, pharmacies, water and gas. Pay online, a local rider brings it.",
       },
-      { property: "og:title", content: "Zentra — Maiduguri local commerce & delivery" },
+      { property: "og:title", content: "Zentra — order from Maiduguri stores, delivered" },
       {
         property: "og:description",
         content:
-          "Order from restaurants, home kitchens, bakeries, pharmacies, water and gas suppliers near you in Maiduguri.",
+          "Browse GRA and Monday Market merchants: restaurants, home kitchens, pharmacies, water and gas. Pay online, a local rider brings it.",
       },
     ],
   }),
