@@ -1,8 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen } from "@/components/zentra/shell";
+import { useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -20,30 +21,30 @@ export const Route = createFileRoute("/login")({
 });
 
 // Modes:
-// "signin"       – returning user, email + password
-// "signup"       – new user, email + password (submitting sends a verification code)
-// "verify"       – enter the 6-digit code that confirms the new account or signs in
+// "signin"       – email + password
 // "signin-code"  – fallback: sign in via one-time email code, no password
-type Mode = "signin" | "signup" | "verify" | "signin-code";
-
-// Which flow the "verify" step belongs to — set explicitly rather than
-// inferred from other form state, so switching modes can't cross-wire it.
-type VerifyKind = "signup" | "signin-code";
+// "verify"       – enter the 6-digit code sent for the "signin-code" fallback
+type Mode = "signin" | "signin-code" | "verify";
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { user, loading } = useSession();
   const [mode, setMode] = useState<Mode>("signin");
-  const [verifyKind, setVerifyKind] = useState<VerifyKind>("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function upsertProfile(user: { id: string; email?: string | null }) {
+  // Already signed in — nothing to do on this page.
+  useEffect(() => {
+    if (!loading && user) navigate({ to: "/" });
+  }, [loading, user, navigate]);
+
+  async function upsertProfile(u: { id: string; email?: string | null }) {
     await supabase
       .from("profiles")
-      .upsert({ id: user.id, email: user.email ?? null }, { onConflict: "id" });
+      .upsert({ id: u.id, email: u.email ?? null }, { onConflict: "id" });
   }
 
   // ── Returning user: email + password ──
@@ -63,55 +64,6 @@ function LoginPage() {
     navigate({ to: "/" });
   }
 
-  // ── New user: create account with password, triggers email verification code ──
-  async function signUp(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const { data, error: err } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    setBusy(false);
-    if (err) {
-      setError(err.message);
-      return;
-    }
-    // Supabase returns a user object with no error even when the email is
-    // already registered (to avoid leaking which emails exist). A real new
-    // signup has identities on the user; an existing account comes back with
-    // an empty identities array.
-    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-      setError("That email already has an account. Try signing in instead.");
-      return;
-    }
-    setVerifyKind("signup");
-    setMode("verify");
-    toast.success("Code sent", { description: `Check ${email} to confirm your account.` });
-  }
-
-  // ── Confirm the signup code — one time only, then password works from here on ──
-  async function verifySignup(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const { data, error: err } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: "email",
-    });
-    if (err) {
-      setBusy(false);
-      setError(err.message);
-      return;
-    }
-    if (data.user) {
-      await upsertProfile(data.user);
-    }
-    setBusy(false);
-    navigate({ to: "/" });
-  }
-
   // ── Fallback: passwordless sign-in via emailed code (no password on file) ──
   async function sendSignInCode(e: React.FormEvent) {
     e.preventDefault();
@@ -126,7 +78,6 @@ function LoginPage() {
       setError(err.message);
       return;
     }
-    setVerifyKind("signin-code");
     setMode("verify");
     toast.success("Code sent", { description: `Check ${email} for your 6-digit code.` });
   }
@@ -152,26 +103,15 @@ function LoginPage() {
     navigate({ to: "/" });
   }
 
-  function backToStart() {
-    setError(null);
-    setCode("");
-    setMode(verifyKind === "signup" ? "signup" : "signin-code");
-  }
+  // While we check for an existing session, or once redirecting, show nothing.
+  if (loading || user) return null;
 
   const heading =
-    mode === "signin"
-      ? "Welcome back"
-      : mode === "signup"
-      ? "Create your account"
-      : mode === "signin-code"
-      ? "Sign in with a code"
-      : "Enter your code";
+    mode === "signin" ? "Welcome back" : mode === "signin-code" ? "Sign in with a code" : "Enter your code";
 
   const subheading =
     mode === "signin"
       ? "Sign in with your email and password."
-      : mode === "signup"
-      ? "We'll send a code to confirm your email — just once."
       : mode === "signin-code"
       ? "We'll email you a 6-digit code, no password needed."
       : `We sent a 6-digit code to ${email}.`;
@@ -227,16 +167,9 @@ function LoginPage() {
               {busy ? "Signing in..." : "Sign in"}
             </button>
             <div className="flex items-center justify-between pt-1 text-sm">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setMode("signup");
-                }}
-                className="font-semibold text-primary"
-              >
+              <Link to="/register" className="font-semibold text-primary">
                 Create an account
-              </button>
+              </Link>
               <button
                 type="button"
                 onClick={() => {
@@ -248,59 +181,6 @@ function LoginPage() {
                 Use email code instead
               </button>
             </div>
-          </form>
-        )}
-
-        {/* ── Create account with password ── */}
-        {mode === "signup" && (
-          <form onSubmit={signUp} className="space-y-4">
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Email address
-              </span>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 text-base outline-none ring-primary/20 focus:ring-2"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Password
-              </span>
-              <input
-                type="password"
-                required
-                minLength={6}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 text-base outline-none ring-primary/20 focus:ring-2"
-              />
-            </label>
-            {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-60"
-            >
-              {busy ? "Sending code..." : "Create account"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setMode("signin");
-              }}
-              className="w-full py-2 text-sm font-semibold text-primary"
-            >
-              Already have an account? Sign in
-            </button>
           </form>
         )}
 
@@ -342,12 +222,9 @@ function LoginPage() {
           </form>
         )}
 
-        {/* ── Verify code (either signup confirmation or passwordless sign-in) ── */}
+        {/* ── Verify the passwordless sign-in code ── */}
         {mode === "verify" && (
-          <form
-            onSubmit={verifyKind === "signup" ? verifySignup : verifySignInCode}
-            className="space-y-4"
-          >
+          <form onSubmit={verifySignInCode} className="space-y-4">
             <label className="block">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 6-digit code
@@ -370,7 +247,15 @@ function LoginPage() {
             >
               {busy ? "Checking..." : "Confirm & continue"}
             </button>
-            <button type="button" onClick={backToStart} className="w-full py-2 text-sm font-semibold text-primary">
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setCode("");
+                setMode("signin-code");
+              }}
+              className="w-full py-2 text-sm font-semibold text-primary"
+            >
               Use a different email
             </button>
           </form>
