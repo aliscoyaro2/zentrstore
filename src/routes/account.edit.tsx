@@ -24,7 +24,7 @@ export const Route = createFileRoute("/account/edit")({
 });
 
 function EditProfilePage() {
-  const { user } = useSession();
+  const { user, loading } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +38,20 @@ function EditProfilePage() {
     "idle"
   );
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Still checking for an existing session — don't redirect yet
+  if (loading) {
+    return (
+      <Screen>
+        <PageHeader title="Edit Profile" />
+        <div className="px-4 py-6">
+          <Panel className="p-8 text-center">
+            <div className="animate-pulse">Loading...</div>
+          </Panel>
+        </div>
+      </Screen>
+    );
+  }
 
   // Redirect if not logged in
   if (!user) {
