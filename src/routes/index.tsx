@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Search, ChevronDown, Store, Bike } from "lucide-react";
@@ -11,6 +11,7 @@ import { useCart } from "@/lib/cart";
 import { naira } from "@/lib/money";
 import { useSession } from "@/hooks/use-session";
 import { distanceKm } from "@/lib/geo";
+import { roleHome } from "@/lib/roles";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -33,9 +34,16 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { user, loading } = useSession();
+  const { user, loading, role, roleLoading } = useSession();
+  const navigate = useNavigate();
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && user && !roleLoading && role && role !== "customer") {
+      navigate({ to: roleHome(role) });
+    }
+  }, [loading, user, roleLoading, role, navigate]);
+
+  if (loading || (user && roleLoading)) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
         <span className="rounded-lg bg-primary px-3 py-1 font-display text-lg font-extrabold tracking-tight text-primary-foreground">
@@ -48,6 +56,8 @@ function Home() {
   if (!user) {
     return <LandingPage />;
   }
+
+  if (role && role !== "customer") return null;
 
   return <CustomerBrowse />;
 }
