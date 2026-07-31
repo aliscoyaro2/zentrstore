@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
+import { roleHome } from "@/lib/roles";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -26,9 +27,17 @@ export const Route = createFileRoute("/login")({
 // "verify"       – enter the 6-digit code sent for the "signin-code" fallback
 type Mode = "signin" | "signin-code" | "verify";
 
+// Right after a fresh sign-in, useSession's cached role hasn't updated yet,
+// so look the profile up directly to decide where this account belongs.
+async function resolveHome(userId: string | undefined): Promise<string> {
+  if (!userId) return "/";
+  const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+  return roleHome(data?.role ?? "customer");
+}
+
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading } = useSession();
+  const { user, loading, role, roleLoading } = useSession();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,10 +45,11 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Already signed in — nothing to do on this page.
+  // Already signed in — send them to their own account's home, not
+  // necessarily the customer app.
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/" });
-  }, [loading, user, navigate]);
+    if (!loading && user && !roleLoading) navigate({ to: roleHome(role) });
+  }, [loading, user, roleLoading, role, navigate]);
 
   async function upsertProfile(u: { id: string; email?: string | null }) {
     await supabase
@@ -52,7 +62,7 @@ function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithPassword({
+    const { data, error: err } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
@@ -61,7 +71,7 @@ function LoginPage() {
       setError(err.message);
       return;
     }
-    navigate({ to: "/" });
+    navigate({ to: await resolveHome(data.user?.id) });
   }
 
   // ── Fallback: passwordless sign-in via emailed code (no password on file) ──
@@ -100,7 +110,7 @@ function LoginPage() {
       await upsertProfile(data.user);
     }
     setBusy(false);
-    navigate({ to: "/" });
+    navigate({ to: await resolveHome(data.user?.id) });
   }
 
   // While we check for an existing session, or once redirecting, show nothing.
