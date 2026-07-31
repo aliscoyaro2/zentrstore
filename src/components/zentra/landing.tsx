@@ -57,7 +57,7 @@ export function LandingPage() {
               Start ordering
             </Link>
             <p className="text-center text-xs text-muted-foreground">
-              One-time code by email. No password, no long signup form.
+              Quick signup with email and password.
             </p>
           </div>
         </section>
