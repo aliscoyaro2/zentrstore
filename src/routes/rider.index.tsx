@@ -1,11 +1,10 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
 import { statusLabel } from "@/components/zentra/status-rail";
-import { useSession } from "@/hooks/use-session";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { naira } from "@/lib/money";
 
 export const Route = createFileRoute("/rider/")({
@@ -31,16 +30,11 @@ const NEXT: Partial<Record<string, { status: string; label: string }>> = {
 };
 
 function RiderDashboard() {
-  const { user, loading } = useSession();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [loading, user, navigate]);
+  const { user, ready } = useRoleGuard("rider");
 
   const rider = useQuery({
     queryKey: ["rider", user?.id],
-    enabled: Boolean(user),
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("riders")
@@ -54,7 +48,7 @@ function RiderDashboard() {
 
   const balance = useQuery({
     queryKey: ["rider-balance", user?.id],
-    enabled: Boolean(user),
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rider_balances")
@@ -68,7 +62,7 @@ function RiderDashboard() {
 
   const jobs = useQuery({
     queryKey: ["rider-jobs", user?.id],
-    enabled: Boolean(user),
+    enabled: ready,
     refetchInterval: 20000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -103,7 +97,9 @@ function RiderDashboard() {
     else await jobs.refetch();
   }
 
-  if (!loading && user && rider.isFetched && !rider.data) {
+  if (!ready) return null;
+
+  if (rider.isFetched && !rider.data) {
     return (
       <Screen>
         <PageHeader title="Rider" back="/" />
