@@ -6,8 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { CATEGORIES, categoryLabel } from "@/lib/categories";
 import { Screen, PaystackNote, EmptyState } from "@/components/zentra/shell";
 import { MerchantCard, type MerchantSummary } from "@/components/zentra/merchant-card";
+import { LandingPage } from "@/components/zentra/landing";
 import { useCart } from "@/lib/cart";
 import { naira } from "@/lib/money";
+import { useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,6 +32,26 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
+  const { user, loading } = useSession();
+
+  if (loading) {
+    return (
+      <div className="app-shell flex min-h-screen items-center justify-center">
+        <span className="rounded-lg bg-primary px-3 py-1 font-display text-lg font-extrabold tracking-tight text-primary-foreground">
+          Zentra
+        </span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LandingPage />;
+  }
+
+  return <CustomerBrowse />;
+}
+
+function CustomerBrowse() {
   const [zone, setZone] = useState("GRA Phase 1");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
