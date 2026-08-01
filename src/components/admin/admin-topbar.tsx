@@ -1,15 +1,33 @@
-import { Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { useSession } from "@/hooks/use-session";
 
-export function AdminTopbar({ title, subtitle }: { title: string; subtitle?: string }) {
+export function AdminTopbar({
+  title,
+  subtitle,
+  onMenuClick,
+}: {
+  title: string;
+  subtitle?: string;
+  onMenuClick?: () => void;
+}) {
   const { user } = useSession();
   const initial = (user?.email ?? "A").charAt(0).toUpperCase();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-6">
-      <div className="min-w-0">
-        <h1 className="font-display text-lg font-bold leading-tight text-foreground">{title}</h1>
-        {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+    <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Open menu"
+          className="grid size-9 shrink-0 place-items-center rounded-lg text-foreground hover:bg-secondary md:hidden"
+        >
+          <Menu className="size-5" />
+        </button>
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-lg font-bold leading-tight text-foreground">{title}</h1>
+          {subtitle ? <p className="truncate text-xs text-muted-foreground">{subtitle}</p> : null}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
