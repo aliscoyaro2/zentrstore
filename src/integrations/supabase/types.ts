@@ -93,6 +93,32 @@ export type Database = {
           },
         ]
       }
+      admin_users: {
+        Row: {
+          admin_role: Database["public"]["Enums"]["admin_role"]
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          admin_role?: Database["public"]["Enums"]["admin_role"]
+          created_at?: string | null
+          id: string
+        }
+        Update: {
+          admin_role?: Database["public"]["Enums"]["admin_role"]
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_users_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           created_at: string | null
@@ -137,194 +163,6 @@ export type Database = {
             columns: ["rider_id"]
             isOneToOne: false
             referencedRelation: "riders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      support_tickets: {
-        Row: {
-          assigned_to: string | null
-          category: Database["public"]["Enums"]["ticket_category"]
-          created_at: string | null
-          id: string
-          order_id: string | null
-          requester_id: string | null
-          resolved_at: string | null
-          status: Database["public"]["Enums"]["ticket_status"]
-          subject: string
-        }
-        Insert: {
-          assigned_to?: string | null
-          category?: Database["public"]["Enums"]["ticket_category"]
-          created_at?: string | null
-          id?: string
-          order_id?: string | null
-          requester_id?: string | null
-          resolved_at?: string | null
-          status?: Database["public"]["Enums"]["ticket_status"]
-          subject: string
-        }
-        Update: {
-          assigned_to?: string | null
-          category?: Database["public"]["Enums"]["ticket_category"]
-          created_at?: string | null
-          id?: string
-          order_id?: string | null
-          requester_id?: string | null
-          resolved_at?: string | null
-          status?: Database["public"]["Enums"]["ticket_status"]
-          subject?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "support_tickets_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "support_tickets_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "support_tickets_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ticket_messages: {
-        Row: {
-          body: string
-          created_at: string | null
-          id: string
-          sender_id: string | null
-          ticket_id: string
-        }
-        Insert: {
-          body: string
-          created_at?: string | null
-          id?: string
-          sender_id?: string | null
-          ticket_id: string
-        }
-        Update: {
-          body?: string
-          created_at?: string | null
-          id?: string
-          sender_id?: string | null
-          ticket_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_messages_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ticket_messages_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "support_tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notifications_log: {
-        Row: {
-          body: string
-          channel: Database["public"]["Enums"]["notification_channel"]
-          created_at: string
-          id: string
-          recipient_count: number
-          sent_by: string | null
-          target: Database["public"]["Enums"]["notification_target"]
-          title: string
-        }
-        Insert: {
-          body: string
-          channel: Database["public"]["Enums"]["notification_channel"]
-          created_at?: string
-          id?: string
-          recipient_count?: number
-          sent_by?: string | null
-          target: Database["public"]["Enums"]["notification_target"]
-          title: string
-        }
-        Update: {
-          body?: string
-          channel?: Database["public"]["Enums"]["notification_channel"]
-          created_at?: string
-          id?: string
-          recipient_count?: number
-          sent_by?: string | null
-          target?: Database["public"]["Enums"]["notification_target"]
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notifications_log_sent_by_fkey"
-            columns: ["sent_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_settings: {
-        Row: {
-          base_delivery_fee_kobo: number
-          default_commission_pct: number
-          id: boolean
-          per_km_fee_kobo: number
-          platform_currency: string
-          service_fee_min_kobo: number
-          service_fee_pct: number
-          support_email: string | null
-          support_phone: string | null
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          base_delivery_fee_kobo?: number
-          default_commission_pct?: number
-          id?: boolean
-          per_km_fee_kobo?: number
-          platform_currency?: string
-          service_fee_min_kobo?: number
-          service_fee_pct?: number
-          support_email?: string | null
-          support_phone?: string | null
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          base_delivery_fee_kobo?: number
-          default_commission_pct?: number
-          id?: boolean
-          per_km_fee_kobo?: number
-          platform_currency?: string
-          service_fee_min_kobo?: number
-          service_fee_pct?: number
-          support_email?: string | null
-          support_phone?: string | null
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_settings_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -396,10 +234,15 @@ export type Database = {
       merchants: {
         Row: {
           address_text: string | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
           business_name: string
+          cac_doc_url: string | null
           category: Database["public"]["Enums"]["merchant_category"]
           closing_time: string | null
           commission_pct: number
+          cover_photo_url: string | null
           created_at: string | null
           delivery_radius_km: number
           id: string
@@ -408,14 +251,21 @@ export type Database = {
           lng: number
           opening_time: string | null
           owner_id: string | null
+          phone: string | null
+          rejection_reason: string | null
           status: Database["public"]["Enums"]["approval_status"]
         }
         Insert: {
           address_text?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           business_name: string
+          cac_doc_url?: string | null
           category: Database["public"]["Enums"]["merchant_category"]
           closing_time?: string | null
           commission_pct: number
+          cover_photo_url?: string | null
           created_at?: string | null
           delivery_radius_km?: number
           id?: string
@@ -424,14 +274,21 @@ export type Database = {
           lng: number
           opening_time?: string | null
           owner_id?: string | null
+          phone?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
         }
         Update: {
           address_text?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           business_name?: string
+          cac_doc_url?: string | null
           category?: Database["public"]["Enums"]["merchant_category"]
           closing_time?: string | null
           commission_pct?: number
+          cover_photo_url?: string | null
           created_at?: string | null
           delivery_radius_km?: number
           id?: string
@@ -440,12 +297,55 @@ export type Database = {
           lng?: number
           opening_time?: string | null
           owner_id?: string | null
+          phone?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
         }
         Relationships: [
           {
             foreignKeyName: "merchants_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications_log: {
+        Row: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string | null
+          id: string
+          recipient_count: number | null
+          sent_by: string | null
+          target: Database["public"]["Enums"]["notification_target"]
+          title: string | null
+        }
+        Insert: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string | null
+          id?: string
+          recipient_count?: number | null
+          sent_by?: string | null
+          target: Database["public"]["Enums"]["notification_target"]
+          title?: string | null
+        }
+        Update: {
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string | null
+          id?: string
+          recipient_count?: number | null
+          sent_by?: string | null
+          target?: Database["public"]["Enums"]["notification_target"]
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_log_sent_by_fkey"
+            columns: ["sent_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -490,6 +390,54 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_offers: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          offered_at: string
+          order_id: string
+          responded_at: string | null
+          rider_id: string
+          status: Database["public"]["Enums"]["offer_status"]
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          offered_at?: string
+          order_id: string
+          responded_at?: string | null
+          rider_id: string
+          status?: Database["public"]["Enums"]["offer_status"]
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          offered_at?: string
+          order_id?: string
+          responded_at?: string | null
+          rider_id?: string
+          status?: Database["public"]["Enums"]["offer_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_offers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_offers_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
             referencedColumns: ["id"]
           },
         ]
@@ -688,207 +636,6 @@ export type Database = {
           },
         ]
       }
-      products: {
-        Row: {
-          category: string | null
-          created_at: string | null
-          description: string | null
-          id: string
-          is_available: boolean | null
-          merchant_id: string | null
-          name: string
-          photo_url: string | null
-          prep_time_mins: number
-          price_kobo: number
-        }
-        Insert: {
-          category?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_available?: boolean | null
-          merchant_id?: string | null
-          name: string
-          photo_url?: string | null
-          prep_time_mins?: number
-          price_kobo: number
-        }
-        Update: {
-          category?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          is_available?: boolean | null
-          merchant_id?: string | null
-          name?: string
-          photo_url?: string | null
-          prep_time_mins?: number
-          price_kobo?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "products_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "merchants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      profiles: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          full_name: string | null
-          id: string
-          phone: string | null
-          role: Database["public"]["Enums"]["user_role"]
-        }
-        Insert: {
-          created_at?: string | null
-          email?: string | null
-          full_name?: string | null
-          id: string
-          phone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-        }
-        Update: {
-          created_at?: string | null
-          email?: string | null
-          full_name?: string | null
-          id?: string
-          phone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-        }
-        Relationships: []
-      }
-      rider_balances: {
-        Row: {
-          balance_kobo: number
-          last_settled_at: string | null
-          rider_id: string
-        }
-        Insert: {
-          balance_kobo?: number
-          last_settled_at?: string | null
-          rider_id: string
-        }
-        Update: {
-          balance_kobo?: number
-          last_settled_at?: string | null
-          rider_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rider_balances_rider_id_fkey"
-            columns: ["rider_id"]
-            isOneToOne: true
-            referencedRelation: "riders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      riders: {
-        Row: {
-          created_at: string | null
-          current_lat: number | null
-          current_lng: number | null
-          id: string
-          is_online: boolean | null
-          last_location_at: string | null
-          national_id_doc_url: string | null
-          photo_url: string | null
-          plate_number: string | null
-          rating_avg: number | null
-          status: Database["public"]["Enums"]["approval_status"]
-          total_deliveries: number | null
-          vehicle_make: string | null
-          vehicle_model: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          current_lat?: number | null
-          current_lng?: number | null
-          id: string
-          is_online?: boolean | null
-          last_location_at?: string | null
-          national_id_doc_url?: string | null
-          photo_url?: string | null
-          plate_number?: string | null
-          rating_avg?: number | null
-          status?: Database["public"]["Enums"]["approval_status"]
-          total_deliveries?: number | null
-          vehicle_make?: string | null
-          vehicle_model?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          current_lat?: number | null
-          current_lng?: number | null
-          id?: string
-          is_online?: boolean | null
-          last_location_at?: string | null
-          national_id_doc_url?: string | null
-          photo_url?: string | null
-          plate_number?: string | null
-          rating_avg?: number | null
-          status?: Database["public"]["Enums"]["approval_status"]
-          total_deliveries?: number | null
-          vehicle_make?: string | null
-          vehicle_model?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "riders_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      zones: {
-        Row: {
-          boundary: Json | null
-          created_at: string | null
-          delivery_fee_kobo: number | null
-          estimated_minutes: number | null
-          id: string
-          is_active: boolean | null
-          lat: number | null
-          lng: number | null
-          max_radius_km: number | null
-          minimum_order_kobo: number
-          name: string
-        }
-        Insert: {
-          boundary?: Json | null
-          created_at?: string | null
-          delivery_fee_kobo?: number | null
-          estimated_minutes?: number | null
-          id?: string
-          is_active?: boolean | null
-          lat?: number | null
-          lng?: number | null
-          max_radius_km?: number | null
-          minimum_order_kobo?: number
-          name: string
-        }
-        Update: {
-          boundary?: Json | null
-          created_at?: string | null
-          delivery_fee_kobo?: number | null
-          estimated_minutes?: number | null
-          id?: string
-          is_active?: boolean | null
-          lat?: number | null
-          lng?: number | null
-          max_radius_km?: number | null
-          minimum_order_kobo?: number
-          name?: string
-        }
-        Relationships: []
-      }
       platform_settings: {
         Row: {
           base_delivery_fee_kobo: number
@@ -939,14 +686,459 @@ export type Database = {
           },
         ]
       }
+      products: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_available: boolean | null
+          merchant_id: string | null
+          name: string
+          photo_url: string | null
+          prep_time_mins: number
+          price_kobo: number
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_available?: boolean | null
+          merchant_id?: string | null
+          name: string
+          photo_url?: string | null
+          prep_time_mins?: number
+          price_kobo: number
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_available?: boolean | null
+          merchant_id?: string | null
+          name?: string
+          photo_url?: string | null
+          prep_time_mins?: number
+          price_kobo?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          blocked_reason: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          is_blocked: boolean
+          phone: string | null
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          blocked_reason?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          is_blocked?: boolean
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          blocked_reason?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_blocked?: boolean
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          customer_id: string | null
+          id: string
+          is_hidden: boolean | null
+          merchant_id: string | null
+          order_id: string | null
+          rating: number
+          rider_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          is_hidden?: boolean | null
+          merchant_id?: string | null
+          order_id?: string | null
+          rating: number
+          rider_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          is_hidden?: boolean | null
+          merchant_id?: string | null
+          order_id?: string | null
+          rating?: number
+          rider_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rider_balances: {
+        Row: {
+          balance_kobo: number
+          last_settled_at: string | null
+          rider_id: string
+        }
+        Insert: {
+          balance_kobo?: number
+          last_settled_at?: string | null
+          rider_id: string
+        }
+        Update: {
+          balance_kobo?: number
+          last_settled_at?: string | null
+          rider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_balances_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: true
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      riders: {
+        Row: {
+          acceptance_rate: number
+          created_at: string | null
+          current_lat: number | null
+          current_lng: number | null
+          id: string
+          is_online: boolean | null
+          last_location_at: string | null
+          national_id_doc_url: string | null
+          photo_url: string | null
+          plate_number: string | null
+          rating_avg: number | null
+          status: Database["public"]["Enums"]["approval_status"]
+          total_deliveries: number | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+        }
+        Insert: {
+          acceptance_rate?: number
+          created_at?: string | null
+          current_lat?: number | null
+          current_lng?: number | null
+          id: string
+          is_online?: boolean | null
+          last_location_at?: string | null
+          national_id_doc_url?: string | null
+          photo_url?: string | null
+          plate_number?: string | null
+          rating_avg?: number | null
+          status?: Database["public"]["Enums"]["approval_status"]
+          total_deliveries?: number | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+        }
+        Update: {
+          acceptance_rate?: number
+          created_at?: string | null
+          current_lat?: number | null
+          current_lng?: number | null
+          id?: string
+          is_online?: boolean | null
+          last_location_at?: string | null
+          national_id_doc_url?: string | null
+          photo_url?: string | null
+          plate_number?: string | null
+          rating_avg?: number | null
+          status?: Database["public"]["Enums"]["approval_status"]
+          total_deliveries?: number | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "riders_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlements: {
+        Row: {
+          amount_kobo: number
+          bank_reference: string | null
+          created_at: string | null
+          id: string
+          initiated_by: string | null
+          merchant_id: string | null
+          paid_at: string | null
+          party_type: Database["public"]["Enums"]["settlement_party"]
+          rider_id: string | null
+          status: Database["public"]["Enums"]["settlement_status"]
+        }
+        Insert: {
+          amount_kobo: number
+          bank_reference?: string | null
+          created_at?: string | null
+          id?: string
+          initiated_by?: string | null
+          merchant_id?: string | null
+          paid_at?: string | null
+          party_type: Database["public"]["Enums"]["settlement_party"]
+          rider_id?: string | null
+          status?: Database["public"]["Enums"]["settlement_status"]
+        }
+        Update: {
+          amount_kobo?: number
+          bank_reference?: string | null
+          created_at?: string | null
+          id?: string
+          initiated_by?: string | null
+          merchant_id?: string | null
+          paid_at?: string | null
+          party_type?: Database["public"]["Enums"]["settlement_party"]
+          rider_id?: string | null
+          status?: Database["public"]["Enums"]["settlement_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlements_initiated_by_fkey"
+            columns: ["initiated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          category: Database["public"]["Enums"]["ticket_category"]
+          created_at: string | null
+          id: string
+          order_id: string | null
+          requester_id: string | null
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["ticket_status"]
+          subject: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"]
+          created_at?: string | null
+          id?: string
+          order_id?: string | null
+          requester_id?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"]
+          subject: string
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"]
+          created_at?: string | null
+          id?: string
+          order_id?: string | null
+          requester_id?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"]
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_messages: {
+        Row: {
+          body: string
+          created_at: string | null
+          id: string
+          sender_id: string | null
+          ticket_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          id?: string
+          sender_id?: string | null
+          ticket_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          id?: string
+          sender_id?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zones: {
+        Row: {
+          boundary: Json | null
+          created_at: string | null
+          delivery_fee_kobo: number | null
+          estimated_minutes: number | null
+          id: string
+          is_active: boolean | null
+          lat: number | null
+          lng: number | null
+          max_radius_km: number | null
+          minimum_order_kobo: number
+          name: string
+        }
+        Insert: {
+          boundary?: Json | null
+          created_at?: string | null
+          delivery_fee_kobo?: number | null
+          estimated_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          lat?: number | null
+          lng?: number | null
+          max_radius_km?: number | null
+          minimum_order_kobo?: number
+          name: string
+        }
+        Update: {
+          boundary?: Json | null
+          created_at?: string | null
+          delivery_fee_kobo?: number | null
+          estimated_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          lat?: number | null
+          lng?: number | null
+          max_radius_km?: number | null
+          minimum_order_kobo?: number
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      accept_order_offer: { Args: { p_offer_id: string }; Returns: boolean }
+      decline_order_offer: { Args: { p_offer_id: string }; Returns: undefined }
+      dispatch_order: { Args: { p_order_id: string }; Returns: string }
+      expire_and_reassign_offers: { Args: never; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
+      admin_role:
+        | "super_admin"
+        | "operations_manager"
+        | "support_agent"
+        | "finance_officer"
+        | "merchant_manager"
+        | "rider_manager"
+        | "marketing_manager"
       approval_status: "pending" | "approved" | "suspended"
       incident_status: "open" | "in_progress" | "resolved"
       incident_type:
@@ -978,6 +1170,14 @@ export type Database = {
         | "gas"
         | "courier"
         | "office_supplies"
+      notification_channel: "push" | "sms" | "whatsapp" | "email"
+      notification_target: "customers" | "merchants" | "riders" | "everyone"
+      offer_status:
+        | "pending"
+        | "accepted"
+        | "declined"
+        | "expired"
+        | "cancelled"
       order_status:
         | "placed"
         | "paid"
@@ -998,11 +1198,11 @@ export type Database = {
         | "refunded"
         | "failed"
         | "cancelled"
-      user_role: "customer" | "merchant" | "rider" | "admin"
-      notification_channel: "push" | "sms" | "whatsapp" | "email"
-      notification_target: "customers" | "merchants" | "riders" | "everyone"
-      ticket_status: "open" | "in_progress" | "resolved" | "closed"
+      settlement_party: "merchant" | "rider"
+      settlement_status: "pending" | "processing" | "paid" | "failed"
       ticket_category: "customer" | "merchant" | "rider" | "payment" | "other"
+      ticket_status: "open" | "in_progress" | "resolved" | "closed"
+      user_role: "customer" | "merchant" | "rider" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1130,6 +1330,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      admin_role: [
+        "super_admin",
+        "operations_manager",
+        "support_agent",
+        "finance_officer",
+        "merchant_manager",
+        "rider_manager",
+        "marketing_manager",
+      ],
       approval_status: ["pending", "approved", "suspended"],
       incident_status: ["open", "in_progress", "resolved"],
       incident_type: [
@@ -1164,6 +1373,9 @@ export const Constants = {
         "courier",
         "office_supplies",
       ],
+      notification_channel: ["push", "sms", "whatsapp", "email"],
+      notification_target: ["customers", "merchants", "riders", "everyone"],
+      offer_status: ["pending", "accepted", "declined", "expired", "cancelled"],
       order_status: [
         "placed",
         "paid",
@@ -1186,6 +1398,10 @@ export const Constants = {
         "failed",
         "cancelled",
       ],
+      settlement_party: ["merchant", "rider"],
+      settlement_status: ["pending", "processing", "paid", "failed"],
+      ticket_category: ["customer", "merchant", "rider", "payment", "other"],
+      ticket_status: ["open", "in_progress", "resolved", "closed"],
       user_role: ["customer", "merchant", "rider", "admin"],
     },
   },
