@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, PaystackNote } from "@/components/zentra/shell";
-import { useSession } from "@/hooks/use-session";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { useCart } from "@/lib/cart";
 import { DELIVERY_FEE_KOBO, naira, serviceFeeKobo } from "@/lib/money";
 
@@ -27,7 +27,7 @@ const ZONE_POINT = { lat: 11.8311, lng: 13.151 };
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const { user, loading } = useSession();
+  const { user, ready } = useRoleGuard("customer");
   const { cart, subtotal, count, clear } = useCart();
   const [addressId, setAddressId] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
@@ -37,13 +37,9 @@ function CheckoutPage() {
   const service = serviceFeeKobo(subtotal);
   const total = subtotal + DELIVERY_FEE_KOBO + service;
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [loading, user, navigate]);
-
   const addresses = useQuery({
     queryKey: ["addresses", user?.id],
-    enabled: Boolean(user),
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("addresses")
@@ -141,6 +137,8 @@ function CheckoutPage() {
       </Screen>
     );
   }
+
+  if (!ready) return null;
 
   return (
     <Screen>
