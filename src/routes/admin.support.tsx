@@ -22,12 +22,12 @@ export const Route = createFileRoute("/admin/support")({
 const TICKET_TABS = ["open", "in_progress", "resolved", "closed", "all"] as const;
 type TicketTab = (typeof TICKET_TABS)[number];
 
+// Matches the live ticket_category enum: customer | merchant | rider | payment | other
 const CATEGORY_LABEL: Record<string, string> = {
-  order_issue: "Order issue",
+  customer: "Customer",
+  merchant: "Merchant",
+  rider: "Rider",
   payment: "Payment",
-  account: "Account",
-  merchant_complaint: "Merchant complaint",
-  rider_complaint: "Rider complaint",
   other: "Other",
 };
 
@@ -46,7 +46,9 @@ function SupportPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("support_tickets")
-        .select("id,subject,message,category,status,created_at,resolved_at,created_by,order_id,profiles:created_by(full_name,email)")
+        .select(
+          "id,subject,category,status,created_at,resolved_at,requester_id,assigned_to,order_id,profiles:requester_id(full_name,email)",
+        )
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
@@ -68,13 +70,16 @@ function SupportPage() {
     },
   });
 
-  const replies = useQuery({
-    queryKey: ["admin-support-ticket-replies", selectedId],
+  // support_tickets has no message body of its own — the opening
+  // message lives as the first row in ticket_messages, so the whole
+  // thread (including the original request) comes from this query.
+  const messages = useQuery({
+    queryKey: ["admin-support-ticket-messages", selectedId],
     enabled: Boolean(selectedId),
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("support_ticket_replies")
-        .select("id,message,author_id,created_at")
+        .from("ticket_messages")
+        .select("id,body,sender_id,created_at")
         .eq("ticket_id", selectedId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -97,13 +102,27 @@ function SupportPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-support-tickets"] });
   }
 
+  async function assignToMe(ticketId: string) {
+    const { data: userData } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("support_tickets")
+      .update({ assigned_to: userData.user?.id })
+      .eq("id", ticketId);
+    if (error) {
+      toast.error("Could not assign ticket", { description: error.message });
+      return;
+    }
+    toast.success("Assigned to you");
+    queryClient.invalidateQueries({ queryKey: ["admin-support-tickets"] });
+  }
+
   async function sendReply() {
     if (!selectedId || !reply.trim()) return;
     const { data: userData } = await supabase.auth.getUser();
-    const { error } = await supabase.from("support_ticket_replies").insert({
+    const { error } = await supabase.from("ticket_messages").insert({
       ticket_id: selectedId,
-      author_id: userData.user?.id,
-      message: reply.trim(),
+      sender_id: userData.user?.id,
+      body: reply.trim(),
     });
     if (error) {
       toast.error("Could not send reply", { description: error.message });
@@ -111,7 +130,7 @@ function SupportPage() {
     }
     if (selected?.status === "open") await setStatus(selectedId, "in_progress");
     setReply("");
-    queryClient.invalidateQueries({ queryKey: ["admin-support-ticket-replies", selectedId] });
+    queryClient.invalidateQueries({ queryKey: ["admin-support-ticket-messages", selectedId] });
   }
 
   async function setIncidentStatus(id: string, status: string) {
@@ -191,6 +210,11 @@ function SupportPage() {
                         <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                           {CATEGORY_LABEL[t.category] ?? t.category}
                         </span>
+                        {!t.assigned_to ? (
+                          <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+                            Unassigned
+                          </span>
+                        ) : null}
                       </div>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {t.profiles?.full_name ?? t.profiles?.email ?? "User"} ·{" "}
@@ -264,24 +288,38 @@ function SupportPage() {
               </button>
             </div>
 
-            <AdminStatusBadge status={selected.status} label={selected.status.replaceAll("_", " ")} />
-
-            <div className="mt-4 rounded-lg border border-border bg-secondary/40 p-3 text-sm">
-              <p className="text-xs font-semibold text-muted-foreground">
-                {selected.profiles?.full_name ?? selected.profiles?.email ?? "User"}
-              </p>
-              <p className="mt-1 text-foreground">{selected.message}</p>
+            <div className="flex items-center gap-2">
+              <AdminStatusBadge status={selected.status} label={selected.status.replaceAll("_", " ")} />
+              {!selected.assigned_to ? (
+                <button
+                  type="button"
+                  onClick={() => assignToMe(selected.id)}
+                  className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground"
+                >
+                  Assign to me
+                </button>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">Assigned</span>
+              )}
             </div>
 
-            <div className="mt-4 space-y-3">
-              {(replies.data ?? []).map((r) => (
-                <div key={r.id} className="rounded-lg border border-border p-3 text-sm">
-                  <p className="text-foreground">{r.message}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {r.created_at ? new Date(r.created_at).toLocaleString("en-NG") : ""}
-                  </p>
-                </div>
-              ))}
+            <p className="mt-4 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              {selected.profiles?.full_name ?? selected.profiles?.email ?? "User"}
+            </p>
+
+            <div className="mt-2 space-y-3">
+              {(messages.data ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">No messages yet.</p>
+              ) : (
+                (messages.data ?? []).map((m) => (
+                  <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
+                    <p className="text-foreground">{m.body}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {m.created_at ? new Date(m.created_at).toLocaleString("en-NG") : ""}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="mt-4 flex items-center gap-2">
