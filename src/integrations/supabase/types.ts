@@ -141,6 +141,106 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          assigned_admin_id: string | null
+          category: Database["public"]["Enums"]["support_ticket_category"]
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          order_id: string | null
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["support_ticket_status"]
+          subject: string
+        }
+        Insert: {
+          assigned_admin_id?: string | null
+          category?: Database["public"]["Enums"]["support_ticket_category"]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          order_id?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["support_ticket_status"]
+          subject: string
+        }
+        Update: {
+          assigned_admin_id?: string | null
+          category?: Database["public"]["Enums"]["support_ticket_category"]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          order_id?: string | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["support_ticket_status"]
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_admin_id_fkey"
+            columns: ["assigned_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_ticket_replies: {
+        Row: {
+          author_id: string | null
+          created_at: string
+          id: string
+          message: string
+          ticket_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          ticket_id: string
+        }
+        Update: {
+          author_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_replies_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_ticket_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ledger: {
         Row: {
           amount_kobo: number
@@ -761,6 +861,14 @@ export type Database = {
         | "failed"
         | "cancelled"
       user_role: "customer" | "merchant" | "rider" | "admin"
+      support_ticket_status: "open" | "in_progress" | "resolved" | "closed"
+      support_ticket_category:
+        | "order_issue"
+        | "payment"
+        | "account"
+        | "merchant_complaint"
+        | "rider_complaint"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
