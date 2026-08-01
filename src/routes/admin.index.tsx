@@ -151,7 +151,7 @@ function DashboardPage() {
       const { data, error } = await supabase
         .from("orders")
         .select("id,status,total_kobo,merchants(business_name)")
-        .in("status", ACTIVE_ORDER_STATUSES)
+        .in("status", ACTIVE_ORDER_STATUSES as never)
         .order("placed_at", { ascending: false })
         .limit(8);
       if (error) throw error;

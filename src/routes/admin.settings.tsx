@@ -65,7 +65,7 @@ function SettingsPage() {
     const { data: userData } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("platform_settings")
-      .update({ ...form, updated_at: new Date().toISOString(), updated_by: userData.user?.id })
+      .update({ ...form, updated_at: new Date().toISOString(), updated_by: userData.user?.id ?? null })
       .eq("id", true);
     setSaving(false);
     if (error) {

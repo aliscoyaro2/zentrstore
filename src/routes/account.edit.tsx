@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   User,
   Camera,
@@ -52,13 +52,15 @@ function EditProfilePage() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
-      if (data) {
-        setFullName(data.full_name || "");
-        setPhone(data.phone || "");
-      }
-    },
   });
+
+  // Populate the form once the profile arrives (and whenever it refreshes).
+  useEffect(() => {
+    if (profile.data) {
+      setFullName(profile.data.full_name || "");
+      setPhone(profile.data.phone || "");
+    }
+  }, [profile.data]);
 
   // ── Update profile mutation ──
   const updateProfile = useMutation({
@@ -172,7 +174,7 @@ function EditProfilePage() {
     updateProfile.mutate({
       full_name: fullName.trim(),
       phone: phone.trim(),
-      photo_url: photoUrl,
+      ...(photoUrl !== undefined ? { photo_url: photoUrl } : {}),
     });
   };
 
@@ -282,7 +284,7 @@ function EditProfilePage() {
             <label className="text-sm font-medium">Email Address</label>
             <input
               type="email"
-              value={profile.data?.email || user.email || ""}
+              value={profile.data?.email ?? user.email ?? ""}
               disabled
               className="mt-1 w-full rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground cursor-not-allowed"
             />
