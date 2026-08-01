@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bike, MapPin, Navigation, PackageCheck, Radio, Star } from "lucide-react";
+import { Bike, MapPin, Navigation, PackageCheck, Radio, Star, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
 import { RiderBottomNav } from "@/components/zentra/rider-bottom-nav";
@@ -24,9 +25,19 @@ export const Route = createFileRoute("/rider/")({
   component: RiderDashboard,
 });
 
+// Statuses during which a delivery is actively "in the rider's hands" —
+// used both to block going offline and to identify the current job.
+const ACTIVE_DELIVERY_STATUSES = new Set([
+  "rider_assigned",
+  "rider_en_route_to_merchant",
+  "picked_up",
+  "rider_en_route_to_customer",
+]);
+
+const ACCEPT_WINDOW_SECONDS = 60;
+
 const NEXT: Partial<Record<string, { status: string; label: string }>> = {
-  rider_assigned: { status: "rider_en_route_to_merchant", label: "Heading to store" },
-  rider_en_route_to_merchant: { status: "picked_up", label: "Picked up order" },
+  rider_en_route_to_merchant: { status: "picked_up", label: "Confirm pickup" },
   picked_up: { status: "rider_en_route_to_customer", label: "Heading to customer" },
   rider_en_route_to_customer: { status: "delivered", label: "Mark delivered" },
 };
@@ -74,19 +85,48 @@ function RiderDashboard() {
   const jobs = useQuery({
     queryKey: ["rider-jobs", user?.id],
     enabled: ready,
-    refetchInterval: 20000,
+    refetchInterval: 8000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id,status,total_kobo,delivery_fee_kobo,merchants(business_name,address_text),addresses(formatted)")
+        .select(
+          "id,status,total_kobo,delivery_fee_kobo,rider_assigned_at,merchants(business_name,address_text),addresses(formatted)",
+        )
         .order("placed_at", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
+  // Stamp rider_assigned_at the first time we see a freshly-assigned job
+  // that doesn't have one yet, so the 60s accept window is anchored to a
+  // real server timestamp rather than a client timer that resets on
+  // refresh. This is a self-healing best-effort stamp, not a dispatch
+  // feature — admin.orders.tsx still does the actual assignment.
+  const stampedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const needsStamp = (jobs.data ?? []).find(
+      (j) => j.status === "rider_assigned" && !j.rider_assigned_at && !stampedRef.current.has(j.id),
+    );
+    if (!needsStamp) return;
+    stampedRef.current.add(needsStamp.id);
+    supabase
+      .from("orders")
+      .update({ rider_assigned_at: new Date().toISOString() })
+      .eq("id", needsStamp.id)
+      .then(() => jobs.refetch());
+  }, [jobs.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function toggleOnline() {
     if (!rider.data) return;
+
+    if (rider.data.is_online && hasActiveDelivery) {
+      toast.error("Can't go offline mid-delivery", {
+        description: "Finish or hand off your current job before going offline.",
+      });
+      return;
+    }
+
     const { error } = await supabase
       .from("riders")
       .update({ is_online: !rider.data.is_online })
@@ -106,6 +146,22 @@ function RiderDashboard() {
       .eq("id", orderId);
     if (error) toast.error("Update failed", { description: error.message });
     else await jobs.refetch();
+  }
+
+  async function decline(orderId: string) {
+    // No dedicated "declined" status exists on the order_status enum, so a
+    // decline unassigns this rider and drops the order back to
+    // "preparing" (pre-assignment) for admin/dispatch to reassign, rather
+    // than inventing a new enum value that other screens don't know about.
+    const { error } = await supabase
+      .from("orders")
+      .update({ rider_id: null, status: "preparing", rider_assigned_at: null })
+      .eq("id", orderId);
+    if (error) toast.error("Could not decline", { description: error.message });
+    else {
+      toast("Job declined", { description: "It's been sent back to dispatch." });
+      await jobs.refetch();
+    }
   }
 
   if (!ready) return null;
@@ -132,12 +188,12 @@ function RiderDashboard() {
 
   const allActive = (jobs.data ?? []).filter((j) => j.status !== "delivered" && j.status !== "cancelled");
   // A rider works one delivery at a time — the first active job (if any) is
-  // "the job", everything else is queued behind it. This is the core fix:
-  // the old screen rendered every active order as an identical card, so a
-  // rider mid-delivery couldn't tell what needed their attention right now.
+  // "the job", everything else is queued behind it.
   const [currentJob, ...queuedJobs] = allActive;
   const isVerified = rider.data?.status === "approved";
   const isOnline = Boolean(rider.data?.is_online);
+  const hasActiveDelivery = Boolean(currentJob && ACTIVE_DELIVERY_STATUSES.has(currentJob.status));
+  const isPendingAccept = currentJob?.status === "rider_assigned";
 
   return (
     <Screen navSlot={<RiderBottomNav />}>
@@ -161,9 +217,7 @@ function RiderDashboard() {
           </div>
         ) : null}
 
-        {/* Online status — the single most important control on this screen,
-            so it gets its own full-width block rather than a small badge
-            competing with the page title. */}
+        {/* Online status — the single most important control on this screen. */}
         <button
           type="button"
           onClick={toggleOnline}
@@ -185,7 +239,11 @@ function RiderDashboard() {
                 {isOnline ? "You're online" : "You're offline"}
               </span>
               <span className="block text-xs text-muted-foreground">
-                {isOnline ? "Dispatch can send you jobs" : "Tap to start receiving jobs"}
+                {isOnline && hasActiveDelivery
+                  ? "Finish your current job to go offline"
+                  : isOnline
+                    ? "Dispatch can send you jobs"
+                    : "Tap to start receiving jobs"}
               </span>
             </span>
           </span>
@@ -198,9 +256,14 @@ function RiderDashboard() {
           </span>
         </button>
 
-        {/* Active job — the thing the rider needs right now, always first,
-            always the visually dominant element when it exists. */}
-        {currentJob ? (
+        {/* Active job — the thing the rider needs right now. */}
+        {currentJob && isPendingAccept ? (
+          <IncomingJobCard
+            job={currentJob}
+            onAccept={() => advance(currentJob.id, "rider_en_route_to_merchant")}
+            onDecline={() => decline(currentJob.id)}
+          />
+        ) : currentJob ? (
           <CurrentJobCard job={currentJob} onAdvance={advance} />
         ) : isOnline ? (
           <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 text-center">
@@ -217,8 +280,7 @@ function RiderDashboard() {
           />
         )}
 
-        {/* Queued jobs — batched work waiting behind the current job, kept
-            visually quieter so they don't compete with it. */}
+        {/* Queued jobs — batched work waiting behind the current job. */}
         {queuedJobs.length > 0 ? (
           <div>
             <h2 className="pb-2 text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
@@ -253,9 +315,93 @@ type JobRow = {
   id: string;
   status: string;
   delivery_fee_kobo: number;
+  rider_assigned_at: string | null;
   merchants: { business_name: string | null; address_text: string | null } | null;
   addresses: { formatted: string | null } | null;
 };
+
+/**
+ * The order-request moment (stage 6): a newly-assigned job sits here with
+ * a countdown. If the rider doesn't respond in time, this component just
+ * stops enforcing the window client-side — real auto-reassignment after
+ * expiry needs a server-side job (cron/edge function), which is outside
+ * what a frontend-only change can guarantee. The countdown is shown
+ * honestly as "time to respond", not a hard promise of auto-reassignment.
+ */
+function IncomingJobCard({
+  job,
+  onAccept,
+  onDecline,
+}: {
+  job: JobRow;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!job.rider_assigned_at) {
+      setSecondsLeft(ACCEPT_WINDOW_SECONDS);
+      return;
+    }
+    const assignedAt = new Date(job.rider_assigned_at).getTime();
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - assignedAt) / 1000);
+      setSecondsLeft(Math.max(0, ACCEPT_WINDOW_SECONDS - elapsed));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [job.rider_assigned_at]);
+
+  const expired = secondsLeft === 0;
+
+  return (
+    <Panel className="overflow-hidden border-primary/40">
+      <div className="flex items-center justify-between border-b border-border bg-primary px-4 py-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-primary-foreground">
+          New delivery request
+        </p>
+        {secondsLeft !== null ? (
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-extrabold tabular-nums ${
+              expired ? "bg-destructive text-destructive-foreground" : "bg-primary-foreground/20 text-primary-foreground"
+            }`}
+          >
+            {expired ? "Time's up" : `0:${String(secondsLeft).padStart(2, "0")}`}
+          </span>
+        ) : null}
+      </div>
+      <div className="p-4">
+        <p className="text-base font-bold">{job.merchants?.business_name ?? "Store"}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {job.merchants?.address_text ?? "Pickup address to follow"}
+        </p>
+        <p className="mt-3 font-display text-lg font-extrabold text-primary">
+          {naira(job.delivery_fee_kobo)}
+        </p>
+
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onDecline}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-3.5 text-sm font-bold text-muted-foreground"
+          >
+            <X className="size-4" strokeWidth={2.5} />
+            Decline
+          </button>
+          <button
+            type="button"
+            onClick={onAccept}
+            className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+          >
+            Accept
+          </button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
 
 function CurrentJobCard({
   job,
@@ -267,6 +413,13 @@ function CurrentJobCard({
   const next = NEXT[job.status];
   const leg = LEG[job.status];
   const headingTo = leg?.destination === "customer" ? "customer" : "merchant";
+  const [arrived, setArrived] = useState(false);
+
+  // Stage 8/9: arrival + pickup verification. Rather than one button
+  // jumping straight from "en route to merchant" to "picked up", the
+  // rider first confirms arrival, then confirms the pickup itself —
+  // two distinct taps, matching the two distinct real-world moments.
+  const showArrivalStep = job.status === "rider_en_route_to_merchant" && !arrived;
 
   return (
     <Panel className="overflow-hidden">
@@ -295,7 +448,23 @@ function CurrentJobCard({
           </span>
         </div>
 
-        {next ? (
+        {showArrivalStep ? (
+          <button
+            type="button"
+            onClick={() => setArrived(true)}
+            className="mt-4 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+          >
+            I've arrived at the store
+          </button>
+        ) : job.status === "rider_en_route_to_merchant" && arrived ? (
+          <button
+            type="button"
+            onClick={() => onAdvance(job.id, "picked_up")}
+            className="mt-4 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+          >
+            Confirm pickup
+          </button>
+        ) : next ? (
           <button
             type="button"
             onClick={() => onAdvance(job.id, next.status)}
