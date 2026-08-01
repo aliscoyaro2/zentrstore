@@ -486,3 +486,11 @@ function Field({ label, value, href }: { label: string; value: string; href?: st
       {href ? (
         <a href={href} target="_blank" rel="noreferrer" className="font-medium text-primary underline">
           {value}
+        </a>
+      ) : (
+        <span className="font-medium">{value}</span>
+      )}
+    </div>
+  );
+}
+
