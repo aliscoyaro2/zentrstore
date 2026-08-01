@@ -494,3 +494,68 @@ function Field({ label, value, href }: { label: string; value: string; href?: st
   );
 }
 
+function MerchantEditForm({
+  merchant,
+  onCancel,
+  onSave,
+}: {
+  merchant: MerchantRow;
+  onCancel: () => void;
+  onSave: (patch: Partial<Omit<MerchantRow, "profiles">>) => void | Promise<void>;
+}) {
+  const [businessName, setBusinessName] = useState(merchant.business_name);
+  const [phone, setPhone] = useState(merchant.phone ?? "");
+  const [addressText, setAddressText] = useState(merchant.address_text ?? "");
+  const [radius, setRadius] = useState(String(merchant.delivery_radius_km));
+  const [commission, setCommission] = useState(String(merchant.commission_pct));
+
+  const inputClass =
+    "mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary";
+
+  return (
+    <form
+      className="mt-5 space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onSave({
+          business_name: businessName.trim(),
+          phone: phone.trim() || null,
+          address_text: addressText.trim() || null,
+          delivery_radius_km: Number(radius) || 0,
+          commission_pct: Number(commission) || 0,
+        });
+      }}
+    >
+      <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        Business name
+        <input className={inputClass} value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
+      </label>
+      <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        Phone
+        <input className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </label>
+      <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        Address
+        <input className={inputClass} value={addressText} onChange={(e) => setAddressText(e.target.value)} />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Radius (km)
+          <input type="number" min="0" step="0.5" className={inputClass} value={radius} onChange={(e) => setRadius(e.target.value)} />
+        </label>
+        <label className="block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Commission (%)
+          <input type="number" min="0" step="0.5" className={inputClass} value={commission} onChange={(e) => setCommission(e.target.value)} />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2 pt-2">
+        <button type="button" onClick={onCancel} className="rounded-lg border border-border py-2.5 text-xs font-bold">
+          Cancel
+        </button>
+        <button type="submit" className="rounded-lg bg-primary py-2.5 text-xs font-bold text-primary-foreground">
+          Save changes
+        </button>
+      </div>
+    </form>
+  );
+}
