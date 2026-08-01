@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
+import { roleHome } from "@/lib/roles";
 import { useState } from "react";
 
 export const Route = createFileRoute("/addresses")({
@@ -30,7 +31,7 @@ export const Route = createFileRoute("/addresses")({
 });
 
 function AddressesPage() {
-  const { user, loading } = useSession();
+  const { user, loading, role, roleLoading } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -194,6 +195,13 @@ function AddressesPage() {
   // Redirect if not logged in
   if (!user) {
     navigate({ to: "/login" });
+    return null;
+  }
+
+  // Delivery addresses are a customer-only concept — merchants/riders belong
+  // in their own dashboards.
+  if (!roleLoading && role && role !== "customer") {
+    navigate({ to: roleHome(role) });
     return null;
   }
 
