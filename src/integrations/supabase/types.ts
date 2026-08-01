@@ -663,25 +663,40 @@ export type Database = {
         Row: {
           boundary: Json | null
           created_at: string | null
+          delivery_fee_kobo: number
+          estimated_minutes: number
           id: string
+          is_active: boolean
           lat: number | null
           lng: number | null
+          max_radius_km: number
+          minimum_order_kobo: number
           name: string
         }
         Insert: {
           boundary?: Json | null
           created_at?: string | null
+          delivery_fee_kobo?: number
+          estimated_minutes?: number
           id?: string
+          is_active?: boolean
           lat?: number | null
           lng?: number | null
+          max_radius_km?: number
+          minimum_order_kobo?: number
           name: string
         }
         Update: {
           boundary?: Json | null
           created_at?: string | null
+          delivery_fee_kobo?: number
+          estimated_minutes?: number
           id?: string
+          is_active?: boolean
           lat?: number | null
           lng?: number | null
+          max_radius_km?: number
+          minimum_order_kobo?: number
           name?: string
         }
         Relationships: []
