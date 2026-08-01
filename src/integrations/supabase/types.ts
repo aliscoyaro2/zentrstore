@@ -143,52 +143,49 @@ export type Database = {
       }
       support_tickets: {
         Row: {
-          assigned_admin_id: string | null
-          category: Database["public"]["Enums"]["support_ticket_category"]
-          created_at: string
-          created_by: string | null
+          assigned_to: string | null
+          category: Database["public"]["Enums"]["ticket_category"]
+          created_at: string | null
           id: string
-          message: string
           order_id: string | null
+          requester_id: string | null
           resolved_at: string | null
-          status: Database["public"]["Enums"]["support_ticket_status"]
+          status: Database["public"]["Enums"]["ticket_status"]
           subject: string
         }
         Insert: {
-          assigned_admin_id?: string | null
-          category?: Database["public"]["Enums"]["support_ticket_category"]
-          created_at?: string
-          created_by?: string | null
+          assigned_to?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"]
+          created_at?: string | null
           id?: string
-          message: string
           order_id?: string | null
+          requester_id?: string | null
           resolved_at?: string | null
-          status?: Database["public"]["Enums"]["support_ticket_status"]
+          status?: Database["public"]["Enums"]["ticket_status"]
           subject: string
         }
         Update: {
-          assigned_admin_id?: string | null
-          category?: Database["public"]["Enums"]["support_ticket_category"]
-          created_at?: string
-          created_by?: string | null
+          assigned_to?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"]
+          created_at?: string | null
           id?: string
-          message?: string
           order_id?: string | null
+          requester_id?: string | null
           resolved_at?: string | null
-          status?: Database["public"]["Enums"]["support_ticket_status"]
+          status?: Database["public"]["Enums"]["ticket_status"]
           subject?: string
         }
         Relationships: [
           {
-            foreignKeyName: "support_tickets_assigned_admin_id_fkey"
-            columns: ["assigned_admin_id"]
+            foreignKeyName: "support_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "support_tickets_created_by_fkey"
-            columns: ["created_by"]
+            foreignKeyName: "support_tickets_requester_id_fkey"
+            columns: ["requester_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -202,38 +199,38 @@ export type Database = {
           },
         ]
       }
-      support_ticket_replies: {
+      ticket_messages: {
         Row: {
-          author_id: string | null
-          created_at: string
+          body: string
+          created_at: string | null
           id: string
-          message: string
+          sender_id: string | null
           ticket_id: string
         }
         Insert: {
-          author_id?: string | null
-          created_at?: string
+          body: string
+          created_at?: string | null
           id?: string
-          message: string
+          sender_id?: string | null
           ticket_id: string
         }
         Update: {
-          author_id?: string | null
-          created_at?: string
+          body?: string
+          created_at?: string | null
           id?: string
-          message?: string
+          sender_id?: string | null
           ticket_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "support_ticket_replies_author_id_fkey"
-            columns: ["author_id"]
+            foreignKeyName: "ticket_messages_sender_id_fkey"
+            columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "support_ticket_replies_ticket_id_fkey"
+            foreignKeyName: "ticket_messages_ticket_id_fkey"
             columns: ["ticket_id"]
             isOneToOne: false
             referencedRelation: "support_tickets"
@@ -854,43 +851,93 @@ export type Database = {
         Row: {
           boundary: Json | null
           created_at: string | null
-          delivery_fee_kobo: number
-          estimated_minutes: number
+          delivery_fee_kobo: number | null
+          estimated_minutes: number | null
           id: string
-          is_active: boolean
+          is_active: boolean | null
           lat: number | null
           lng: number | null
-          max_radius_km: number
+          max_radius_km: number | null
           minimum_order_kobo: number
           name: string
         }
         Insert: {
           boundary?: Json | null
           created_at?: string | null
-          delivery_fee_kobo?: number
-          estimated_minutes?: number
+          delivery_fee_kobo?: number | null
+          estimated_minutes?: number | null
           id?: string
-          is_active?: boolean
+          is_active?: boolean | null
           lat?: number | null
           lng?: number | null
-          max_radius_km?: number
+          max_radius_km?: number | null
           minimum_order_kobo?: number
           name: string
         }
         Update: {
           boundary?: Json | null
           created_at?: string | null
-          delivery_fee_kobo?: number
-          estimated_minutes?: number
+          delivery_fee_kobo?: number | null
+          estimated_minutes?: number | null
           id?: string
-          is_active?: boolean
+          is_active?: boolean | null
           lat?: number | null
           lng?: number | null
-          max_radius_km?: number
+          max_radius_km?: number | null
           minimum_order_kobo?: number
           name?: string
         }
         Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          base_delivery_fee_kobo: number
+          default_commission_pct: number
+          id: boolean
+          per_km_fee_kobo: number
+          platform_currency: string
+          service_fee_min_kobo: number
+          service_fee_pct: number
+          support_email: string | null
+          support_phone: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_delivery_fee_kobo?: number
+          default_commission_pct?: number
+          id?: boolean
+          per_km_fee_kobo?: number
+          platform_currency?: string
+          service_fee_min_kobo?: number
+          service_fee_pct?: number
+          support_email?: string | null
+          support_phone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_delivery_fee_kobo?: number
+          default_commission_pct?: number
+          id?: boolean
+          per_km_fee_kobo?: number
+          platform_currency?: string
+          service_fee_min_kobo?: number
+          service_fee_pct?: number
+          support_email?: string | null
+          support_phone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -954,14 +1001,8 @@ export type Database = {
       user_role: "customer" | "merchant" | "rider" | "admin"
       notification_channel: "push" | "sms" | "whatsapp" | "email"
       notification_target: "customers" | "merchants" | "riders" | "everyone"
-      support_ticket_status: "open" | "in_progress" | "resolved" | "closed"
-      support_ticket_category:
-        | "order_issue"
-        | "payment"
-        | "account"
-        | "merchant_complaint"
-        | "rider_complaint"
-        | "other"
+      ticket_status: "open" | "in_progress" | "resolved" | "closed"
+      ticket_category: "customer" | "merchant" | "rider" | "payment" | "other"
     }
     CompositeTypes: {
       [_ in never]: never
