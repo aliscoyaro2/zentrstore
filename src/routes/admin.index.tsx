@@ -1,309 +1,295 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "sonner";
+import { Package, Bike, Store, Wallet, Clock, RefreshCcw, LifeBuoy } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, XAxis, Line, LineChart, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
-import { statusLabel } from "@/components/zentra/status-rail";
+import { AdminLayout } from "@/components/admin/admin-layout";
+import { StatCard } from "@/components/admin/stat-card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { useRoleGuard } from "@/hooks/use-role-guard";
-import { categoryLabel } from "@/lib/categories";
 import { naira } from "@/lib/money";
+import { statusLabel } from "@/components/zentra/status-rail";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({
     meta: [
-      { title: "Admin control — Zentra" },
-      {
-        name: "description",
-        content: "Approve merchants and riders, dispatch orders and watch Zentra platform revenue.",
-      },
-      { property: "og:title", content: "Zentra admin control" },
-      { property: "og:description", content: "Approvals, dispatch and money in one operator view." },
+      { title: "Dashboard — Zentra Admin" },
+      { name: "description", content: "Live overview of Zentra orders, riders, merchants and revenue." },
     ],
   }),
-  component: AdminPage,
+  component: DashboardPage,
 });
 
-type Tab = "approvals" | "dispatch" | "money";
+const ACTIVE_ORDER_STATUSES = [
+  "paid",
+  "merchant_accepted",
+  "preparing",
+  "rider_assigned",
+  "rider_en_route_to_merchant",
+  "picked_up",
+  "rider_en_route_to_customer",
+];
 
-function AdminPage() {
+const ORDER_STATUS_GROUPS = [
+  { key: "pending", label: "Pending", statuses: ["placed", "paid"] },
+  { key: "preparing", label: "Preparing", statuses: ["merchant_accepted", "preparing"] },
+  { key: "picked_up", label: "Picked up", statuses: ["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer"] },
+  { key: "delivered", label: "Delivered", statuses: ["delivered"] },
+  { key: "cancelled", label: "Cancelled", statuses: ["cancelled", "refunded"] },
+];
+
+const chartConfig: ChartConfig = {
+  orders: { label: "Orders", color: "var(--chart-1)" },
+  revenue: { label: "Revenue", color: "var(--chart-1)" },
+};
+
+function DashboardPage() {
   const { ready } = useRoleGuard("admin");
-  const [tab, setTab] = useState<Tab>("approvals");
 
-  const merchants = useQuery({
-    queryKey: ["admin-merchants"],
+  const today = useQuery({
+    queryKey: ["admin-dashboard-today"],
     enabled: ready,
+    refetchInterval: 30000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("merchants")
-        .select("id,owner_id,business_name,category,status,address_text")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const [ordersToday, ridersOnline, merchantsOnline, pendingMerchants, pendingRiders, openTickets] =
+        await Promise.all([
+          supabase
+            .from("orders")
+            .select("id,status,total_kobo", { count: "exact" })
+            .gte("placed_at", startOfDay.toISOString()),
+          supabase.from("riders").select("id", { count: "exact", head: true }).eq("is_online", true),
+          supabase
+            .from("merchants")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "approved")
+            .eq("is_open_override", true),
+          supabase
+            .from("merchants")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+          supabase.from("riders").select("id", { count: "exact", head: true }).eq("status", "pending"),
+          supabase
+            .from("support_tickets")
+            .select("id", { count: "exact", head: true })
+            .in("status", ["open", "in_progress"]),
+        ]);
+
+      return {
+        ordersToday: ordersToday.data ?? [],
+        ordersTodayCount: ordersToday.count ?? 0,
+        ridersOnline: ridersOnline.count ?? 0,
+        merchantsOnline: merchantsOnline.count ?? 0,
+        pendingMerchants: pendingMerchants.count ?? 0,
+        pendingRiders: pendingRiders.count ?? 0,
+        openTickets: openTickets.count ?? 0,
+      };
     },
   });
 
-  const riders = useQuery({
-    queryKey: ["admin-riders"],
+  const trend = useQuery({
+    queryKey: ["admin-dashboard-trend"],
     enabled: ready,
     queryFn: async () => {
+      const since = new Date();
+      since.setDate(since.getDate() - 6);
+      since.setHours(0, 0, 0, 0);
+
       const { data, error } = await supabase
-        .from("riders")
-        .select("id,status,vehicle_make,vehicle_model,plate_number,is_online")
-        .order("created_at", { ascending: false });
+        .from("orders")
+        .select("placed_at,total_kobo,status")
+        .gte("placed_at", since.toISOString());
       if (error) throw error;
-      return data;
+
+      const days: { date: string; label: string; orders: number; revenue: number }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push({
+          date: d.toDateString(),
+          label: d.toLocaleDateString("en-NG", { weekday: "short" }),
+          orders: 0,
+          revenue: 0,
+        });
+      }
+
+      for (const row of data ?? []) {
+        if (!row.placed_at) continue;
+        const dateStr = new Date(row.placed_at).toDateString();
+        const bucket = days.find((d) => d.date === dateStr);
+        if (!bucket) continue;
+        bucket.orders += 1;
+        if (row.status !== "cancelled" && row.status !== "refunded") {
+          bucket.revenue += row.total_kobo;
+        }
+      }
+      return days;
     },
   });
 
-  const orders = useQuery({
-    queryKey: ["admin-orders"],
+  const statusBreakdown = useQuery({
+    queryKey: ["admin-dashboard-status-breakdown"],
     enabled: ready,
-    refetchInterval: 20000,
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("status").limit(2000);
+      if (error) throw error;
+      return ORDER_STATUS_GROUPS.map((g) => ({
+        ...g,
+        count: (data ?? []).filter((o) => g.statuses.includes(o.status)).length,
+      }));
+    },
+  });
+
+  const activeSnapshot = useQuery({
+    queryKey: ["admin-dashboard-active-orders"],
+    enabled: ready,
+    refetchInterval: 15000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select(
-          "id,status,total_kobo,service_fee_kobo,delivery_fee_kobo,rider_id,merchants(business_name)",
-        )
+        .select("id,status,total_kobo,merchants(business_name)")
+        .in("status", ACTIVE_ORDER_STATUSES)
         .order("placed_at", { ascending: false })
-        .limit(50);
+        .limit(8);
       if (error) throw error;
       return data;
     },
   });
 
-  async function setMerchantStatus(id: string, status: "approved" | "suspended") {
-    const { error } = await supabase.from("merchants").update({ status }).eq("id", id);
-    if (error) {
-      toast.error("Not allowed", { description: error.message });
-      return;
-    }
-    // Accounts are strictly single-purpose on Zentra: once someone's store
-    // is approved, their account becomes a merchant account and they'll be
-    // routed to the merchant dashboard from here on, not the customer app.
-    if (status === "approved") {
-      const ownerId = merchants.data?.find((m) => m.id === id)?.owner_id;
-      if (ownerId) {
-        const { error: roleError } = await supabase
-          .from("profiles")
-          .update({ role: "merchant" })
-          .eq("id", ownerId);
-        if (roleError) toast.error("Store approved, but role update failed", { description: roleError.message });
-      }
-    }
-    await merchants.refetch();
-  }
-
-  async function setRiderStatus(id: string, status: "approved" | "suspended") {
-    const { error } = await supabase.from("riders").update({ status }).eq("id", id);
-    if (error) {
-      toast.error("Not allowed", { description: error.message });
-      return;
-    }
-    // riders.id is the same id as profiles.id, so this is the rider's own account.
-    if (status === "approved") {
-      const { error: roleError } = await supabase
-        .from("profiles")
-        .update({ role: "rider" })
-        .eq("id", id);
-      if (roleError) toast.error("Rider approved, but role update failed", { description: roleError.message });
-    }
-    await riders.refetch();
-  }
-
-  async function assignRider(orderId: string, riderId: string) {
-    const { error } = await supabase
-      .from("orders")
-      .update({ rider_id: riderId, status: "rider_assigned" })
-      .eq("id", orderId);
-    if (error) toast.error("Could not assign", { description: error.message });
-    else await orders.refetch();
-  }
-
-  const gmv = (orders.data ?? []).reduce((sum, o) => sum + o.total_kobo, 0);
-  const serviceFees = (orders.data ?? []).reduce((sum, o) => sum + o.service_fee_kobo, 0);
-  const deliveryFees = (orders.data ?? []).reduce((sum, o) => sum + o.delivery_fee_kobo, 0);
-  const unassigned = (orders.data ?? []).filter(
-    (o) => !o.rider_id && ["paid", "merchant_accepted", "preparing"].includes(o.status),
-  );
-  const approvedRiders = (riders.data ?? []).filter((r) => r.status === "approved");
-
   if (!ready) return null;
 
-  return (
-    <Screen>
-      <PageHeader title="Admin control" subtitle="Maiduguri operations" back="/" />
+  const revenueToday = (today.data?.ordersToday ?? [])
+    .filter((o) => o.status !== "cancelled" && o.status !== "refunded")
+    .reduce((sum, o) => sum + o.total_kobo, 0);
 
-      <div className="flex gap-2 px-4 pt-4">
-        {(["approvals", "dispatch", "money"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-2 text-sm font-bold capitalize ${
-              tab === t ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+  return (
+    <AdminLayout title="Dashboard" subtitle="Maiduguri operations, live">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Today's orders" value={String(today.data?.ordersTodayCount ?? 0)} icon={Package} />
+        <StatCard label="Active riders" value={String(today.data?.ridersOnline ?? 0)} icon={Bike} />
+        <StatCard label="Online merchants" value={String(today.data?.merchantsOnline ?? 0)} icon={Store} />
+        <StatCard label="Revenue today" value={naira(revenueToday)} icon={Wallet} />
+        <StatCard
+          label="Pending merchants"
+          value={String(today.data?.pendingMerchants ?? 0)}
+          icon={Clock}
+          tone="warning"
+        />
+        <StatCard label="Pending riders" value={String(today.data?.pendingRiders ?? 0)} icon={Clock} tone="warning" />
+        <StatCard
+          label="Refund requests"
+          value={String((statusBreakdown.data?.find((g) => g.key === "cancelled")?.count ?? 0))}
+          icon={RefreshCcw}
+        />
+        <StatCard label="Support tickets" value={String(today.data?.openTickets ?? 0)} icon={LifeBuoy} tone="warning" />
       </div>
 
-      {tab === "approvals" ? (
-        <div className="space-y-4 px-4 py-5">
-          <h2 className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
-            Merchants
-          </h2>
-          {(merchants.data ?? []).length === 0 ? (
-            <EmptyState title="Nothing to review" body="Admin access is required to see this data." />
-          ) : null}
-          {(merchants.data ?? []).map((m) => (
-            <Panel key={m.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{m.business_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {categoryLabel(m.category)} · {m.address_text ?? "Maiduguri"}
-                  </p>
-                </div>
-                <Badge status={m.status} />
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMerchantStatus(m.id, "approved")}
-                  className="flex-1 rounded-lg bg-primary py-2 text-xs font-bold text-primary-foreground"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMerchantStatus(m.id, "suspended")}
-                  className="flex-1 rounded-lg border border-destructive py-2 text-xs font-bold text-destructive"
-                >
-                  Suspend
-                </button>
-              </div>
-            </Panel>
-          ))}
-
-          <h2 className="pt-2 text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
-            Riders
-          </h2>
-          {(riders.data ?? []).map((r) => (
-            <Panel key={r.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">
-                    {`${r.vehicle_make ?? ""} ${r.vehicle_model ?? ""}`.trim() || "Rider"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{r.plate_number ?? "No plate"}</p>
-                </div>
-                <Badge status={r.status} />
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRiderStatus(r.id, "approved")}
-                  className="flex-1 rounded-lg bg-primary py-2 text-xs font-bold text-primary-foreground"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRiderStatus(r.id, "suspended")}
-                  className="flex-1 rounded-lg border border-destructive py-2 text-xs font-bold text-destructive"
-                >
-                  Suspend
-                </button>
-              </div>
-            </Panel>
-          ))}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm font-semibold text-foreground">Orders, last 7 days</p>
+          <ChartContainer config={chartConfig} className="mt-4 h-56 w-full">
+            <BarChart data={trend.data ?? []}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
+              <YAxis tickLine={false} axisLine={false} fontSize={12} width={28} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="orders" fill="var(--color-orders)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
         </div>
-      ) : null}
 
-      {tab === "dispatch" ? (
-        <div className="space-y-3 px-4 py-5">
-          {unassigned.length === 0 ? (
-            <EmptyState
-              title="Nothing waiting"
-              body="Paid orders without a rider appear here for assignment."
-            />
-          ) : null}
-          {unassigned.map((o) => (
-            <Panel key={o.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{o.merchants?.business_name ?? "Store"}</p>
-                  <p className="text-xs text-muted-foreground">{statusLabel(o.status)}</p>
-                </div>
-                <span className="font-display font-extrabold">{naira(o.total_kobo)}</span>
-              </div>
-              {approvedRiders.length === 0 ? (
-                <p className="mt-2 text-xs text-muted-foreground">No approved riders yet.</p>
-              ) : (
-                <select
-                  defaultValue=""
-                  onChange={(e) => e.target.value && assignRider(o.id, e.target.value)}
-                  className="mt-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Assign a rider…</option>
-                  {approvedRiders.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {`${r.vehicle_make ?? "Rider"} ${r.plate_number ?? ""}`.trim()}
-                      {r.is_online ? " · online" : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Panel>
-          ))}
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm font-semibold text-foreground">Revenue, last 7 days</p>
+          <ChartContainer config={chartConfig} className="mt-4 h-56 w-full">
+            <LineChart data={trend.data ?? []}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                fontSize={12}
+                width={44}
+                tickFormatter={(v) => `₦${Math.round(v / 1000)}k`}
+              />
+              <ChartTooltip content={<ChartTooltipContent formatter={(v) => naira(Number(v))} />} />
+              <Line
+                type="monotone"
+                dataKey="revenue"
+                stroke="var(--color-revenue)"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ChartContainer>
         </div>
-      ) : null}
+      </div>
 
-      {tab === "money" ? (
-        <div className="space-y-3 px-4 py-5">
-          <Panel className="p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Gross order value
-            </p>
-            <p className="font-display text-3xl font-extrabold">{naira(gmv)}</p>
-          </Panel>
-          <div className="grid grid-cols-2 gap-3">
-            <Panel className="p-4">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Service fees
-              </p>
-              <p className="font-display text-lg font-extrabold">{naira(serviceFees)}</p>
-            </Panel>
-            <Panel className="p-4">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Delivery fees
-              </p>
-              <p className="font-display text-lg font-extrabold">{naira(deliveryFees)}</p>
-            </Panel>
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.3fr]">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm font-semibold text-foreground">Order status</p>
+          <div className="mt-4 space-y-3">
+            {(statusBreakdown.data ?? ORDER_STATUS_GROUPS.map((g) => ({ ...g, count: 0 }))).map((g) => {
+              const max = Math.max(1, ...(statusBreakdown.data ?? []).map((x) => x.count));
+              const pct = Math.round((g.count / max) * 100);
+              return (
+                <div key={g.key}>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-muted-foreground">{g.label}</span>
+                    <span className="font-semibold text-foreground">{g.count}</span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-secondary">
+                    <div
+                      className="h-2 rounded-full bg-primary transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-            Merchant commission is settled from the order payment; rider earnings come out of the
-            delivery fee. Every naira is paid online — Zentra never collects cash on delivery.
-          </p>
         </div>
-      ) : null}
-    </Screen>
-  );
-}
 
-function Badge({ status }: { status: "pending" | "approved" | "suspended" }) {
-  const style =
-    status === "approved"
-      ? "bg-success-soft text-success"
-      : status === "suspended"
-        ? "bg-destructive/10 text-destructive"
-        : "bg-accent-soft text-accent-foreground";
-  return (
-    <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase ${style}`}>
-      {status}
-    </span>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">Live operations map</p>
+            <span className="rounded-full bg-accent-soft px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-accent-foreground">
+              Not connected
+            </span>
+          </div>
+          <div className="mt-4 flex h-56 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-secondary/50 text-center">
+            <p className="max-w-xs text-xs text-muted-foreground">
+              A live map needs a mapping provider (Google Maps or Mapbox) wired in with an API key —
+              let me know which one you use and I'll connect rider and order pins here.
+            </p>
+          </div>
+
+          <p className="mt-5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Active orders right now
+          </p>
+          <div className="mt-2 divide-y divide-border">
+            {(activeSnapshot.data ?? []).length === 0 ? (
+              <p className="py-4 text-center text-xs text-muted-foreground">Nothing in flight right now.</p>
+            ) : (
+              (activeSnapshot.data ?? []).map((o) => (
+                <div key={o.id} className="flex items-center justify-between py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">
+                      {o.merchants?.business_name ?? "Store"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{statusLabel(o.status)}</p>
+                  </div>
+                  <span className="shrink-0 font-display text-sm font-bold text-foreground">
+                    {naira(o.total_kobo)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </AdminLayout>
   );
 }
