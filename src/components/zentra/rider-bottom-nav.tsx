@@ -1,12 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Home, Wallet, User } from "lucide-react";
+import { Home, Wallet, TrendingUp, User } from "lucide-react";
 
-// NOTE: wallet/settlement history isn't a built route yet — once it exists,
-// point this at "/rider/wallet" instead of "/rider".
 const items = [
   { to: "/rider", label: "Home", icon: Home },
-  { to: "/rider", label: "Wallet", icon: Wallet },
-  { to: "/account", label: "Profile", icon: User },
+  { to: "/rider/wallet", label: "Wallet", icon: Wallet },
+  { to: "/rider/performance", label: "Stats", icon: TrendingUp },
+  { to: "/rider/account", label: "Profile", icon: User },
 ] as const;
 
 export function RiderBottomNav() {
