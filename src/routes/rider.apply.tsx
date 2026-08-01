@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
+import { PhotoCaptureField } from "@/components/zentra/photo-capture-field";
 import { useSession } from "@/hooks/use-session";
+import { uploadRiderDocumentPhoto } from "@/lib/uploads";
 
 export const Route = createFileRoute("/rider/apply")({
   head: () => ({
@@ -26,21 +28,45 @@ function RiderApply() {
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [plate, setPlate] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [idUrl, setIdUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
   }, [loading, user, navigate]);
 
+  async function capturePhoto(file: File) {
+    if (!user) return;
+    const url = await uploadRiderDocumentPhoto({ riderId: user.id, kind: "photo", file });
+    setPhotoUrl(url);
+  }
+
+  async function captureId(file: File) {
+    if (!user) return;
+    const url = await uploadRiderDocumentPhoto({ riderId: user.id, kind: "national-id", file });
+    setIdUrl(url);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    if (!photoUrl) {
+      toast.error("Add your photo", { description: "We need a clear photo of you before you can apply." });
+      return;
+    }
+    if (!idUrl) {
+      toast.error("Add your ID photo", { description: "We need a photo of your national ID before you can apply." });
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.from("riders").insert({
       id: user.id,
       vehicle_make: make.trim(),
       vehicle_model: model.trim(),
       plate_number: plate.trim().toUpperCase(),
+      photo_url: photoUrl,
+      national_id_doc_url: idUrl,
     });
     setBusy(false);
     if (error) {
@@ -72,13 +98,32 @@ function RiderApply() {
             <li>• A working motorcycle you own or control</li>
             <li>• A valid plate number</li>
             <li>• A phone that stays on while you're online</li>
+            <li>• A clear photo of yourself</li>
+            <li>• A photo of your national ID</li>
           </ul>
         </Panel>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="space-y-5">
           <Field label="Vehicle make" value={make} onChange={setMake} placeholder="e.g. Bajaj" />
           <Field label="Vehicle model" value={model} onChange={setModel} placeholder="e.g. Boxer 100" />
           <Field label="Plate number" value={plate} onChange={setPlate} placeholder="e.g. BOR 123 AB" />
+
+          <PhotoCaptureField
+            label="Your photo"
+            hint="A clear photo of your face, taken now — this helps merchants and customers recognize you."
+            value={photoUrl}
+            onCapture={capturePhoto}
+            facingMode="user"
+          />
+
+          <PhotoCaptureField
+            label="National ID"
+            hint="A clear photo of your national ID card or slip."
+            value={idUrl}
+            onCapture={captureId}
+            facingMode="environment"
+          />
+
           <button
             type="submit"
             disabled={busy}
