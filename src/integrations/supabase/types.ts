@@ -241,6 +241,97 @@ export type Database = {
           },
         ]
       }
+      notifications_log: {
+        Row: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at: string
+          id: string
+          recipient_count: number
+          sent_by: string | null
+          target: Database["public"]["Enums"]["notification_target"]
+          title: string
+        }
+        Insert: {
+          body: string
+          channel: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          id?: string
+          recipient_count?: number
+          sent_by?: string | null
+          target: Database["public"]["Enums"]["notification_target"]
+          title: string
+        }
+        Update: {
+          body?: string
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          created_at?: string
+          id?: string
+          recipient_count?: number
+          sent_by?: string | null
+          target?: Database["public"]["Enums"]["notification_target"]
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_log_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_settings: {
+        Row: {
+          base_delivery_fee_kobo: number
+          default_commission_pct: number
+          id: boolean
+          per_km_fee_kobo: number
+          platform_currency: string
+          service_fee_min_kobo: number
+          service_fee_pct: number
+          support_email: string | null
+          support_phone: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_delivery_fee_kobo?: number
+          default_commission_pct?: number
+          id?: boolean
+          per_km_fee_kobo?: number
+          platform_currency?: string
+          service_fee_min_kobo?: number
+          service_fee_pct?: number
+          support_email?: string | null
+          support_phone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_delivery_fee_kobo?: number
+          default_commission_pct?: number
+          id?: boolean
+          per_km_fee_kobo?: number
+          platform_currency?: string
+          service_fee_min_kobo?: number
+          service_fee_pct?: number
+          support_email?: string | null
+          support_phone?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ledger: {
         Row: {
           amount_kobo: number
@@ -861,6 +952,8 @@ export type Database = {
         | "failed"
         | "cancelled"
       user_role: "customer" | "merchant" | "rider" | "admin"
+      notification_channel: "push" | "sms" | "whatsapp" | "email"
+      notification_target: "customers" | "merchants" | "riders" | "everyone"
       support_ticket_status: "open" | "in_progress" | "resolved" | "closed"
       support_ticket_category:
         | "order_issue"
