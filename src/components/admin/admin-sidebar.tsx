@@ -1,10 +1,15 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { LogOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_NAV } from "./nav-config";
 import { cn } from "@/lib/utils";
 
-export function AdminSidebar() {
+/**
+ * Sidebar content shared by both the permanent desktop rail and the
+ * mobile slide-in drawer. `onNavigate` lets the mobile drawer close
+ * itself the moment a link is tapped.
+ */
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   async function signOut() {
@@ -13,7 +18,7 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col bg-[var(--sidebar)] text-[var(--sidebar-foreground)]">
+    <>
       <div className="flex items-center gap-2 px-5 py-5">
         <span className="grid size-8 place-items-center rounded-lg bg-[var(--sidebar-primary)] font-display text-sm font-extrabold text-[var(--sidebar-primary-foreground)]">
           Z
@@ -34,6 +39,7 @@ export function AdminSidebar() {
             <Link
               key={item.to}
               to={item.to}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
@@ -58,6 +64,55 @@ export function AdminSidebar() {
           Sign out
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function AdminSidebar({
+  open = false,
+  onClose,
+}: {
+  /** Whether the mobile drawer is open. Ignored at md+ (always visible there). */
+  open?: boolean;
+  onClose?: () => void;
+}) {
+  return (
+    <>
+      {/* Desktop: permanent static column, unchanged from before */}
+      <aside className="hidden h-screen w-60 shrink-0 flex-col bg-[var(--sidebar)] text-[var(--sidebar-foreground)] md:flex">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile: backdrop, only interactive while open */}
+      <div
+        aria-hidden={!open}
+        onClick={onClose}
+        className={cn(
+          "fixed inset-0 z-40 bg-black/50 transition-opacity md:hidden",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      />
+
+      {/* Mobile: slide-in drawer */}
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Admin navigation"
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex h-screen w-64 max-w-[80vw] flex-col bg-[var(--sidebar)] text-[var(--sidebar-foreground)] shadow-xl transition-transform duration-200 ease-out md:hidden",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close menu"
+          className="absolute right-3 top-5 grid size-8 place-items-center rounded-lg text-[var(--sidebar-foreground)]/70 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+        >
+          <X className="size-4" />
+        </button>
+        <SidebarContent onNavigate={onClose} />
+      </aside>
+    </>
   );
 }
