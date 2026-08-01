@@ -127,7 +127,8 @@ function AnalyticsPage() {
   for (const r of rows) {
     if (!r.placed_at) continue;
     const h = new Date(r.placed_at).getHours();
-    hourBuckets[h].orders += 1;
+    const bucket = hourBuckets[h];
+    if (bucket) bucket.orders += 1;
   }
   const peakHour = [...hourBuckets].sort((a, b) => b.orders - a.orders)[0];
 

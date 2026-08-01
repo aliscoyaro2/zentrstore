@@ -7,8 +7,8 @@ export function AdminTopbar({
   onMenuClick,
 }: {
   title: string;
-  subtitle?: string;
-  onMenuClick?: () => void;
+  subtitle?: string | undefined;
+  onMenuClick?: (() => void) | undefined;
 }) {
   const { user } = useSession();
   const initial = (user?.email ?? "A").charAt(0).toUpperCase();

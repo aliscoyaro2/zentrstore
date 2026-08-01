@@ -80,7 +80,7 @@ function CustomerBrowse() {
   // Default to the first zone once zones have loaded.
   useEffect(() => {
     if (!zoneId && zones.data && zones.data.length > 0) {
-      setZoneId(zones.data[0].id);
+      setZoneId(zones.data[0]!.id);
     }
   }, [zoneId, zones.data]);
 

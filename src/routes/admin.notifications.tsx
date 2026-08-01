@@ -80,7 +80,7 @@ function NotificationsPage() {
     setSending(true);
     const { data: userData } = await supabase.auth.getUser();
     const { error } = await supabase.from("notifications_log").insert({
-      sent_by: userData.user?.id,
+      sent_by: userData.user?.id ?? null,
       channel,
       target,
       title: title.trim(),

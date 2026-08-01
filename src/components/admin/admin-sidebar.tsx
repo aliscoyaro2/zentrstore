@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * mobile slide-in drawer. `onNavigate` lets the mobile drawer close
  * itself the moment a link is tapped.
  */
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   async function signOut() {

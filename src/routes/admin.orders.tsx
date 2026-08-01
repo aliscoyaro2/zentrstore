@@ -164,7 +164,7 @@ function OrdersPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-orders-list"] });
   }
 
-  async function logAdminAction(actionType: string, targetTable: string, targetId: string, details: object) {
+  async function logAdminAction(actionType: string, targetTable: string, targetId: string, details: Record<string, unknown>) {
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
     await supabase.from("admin_actions").insert({
@@ -172,7 +172,7 @@ function OrdersPage() {
       action_type: actionType,
       target_table: targetTable,
       target_id: targetId,
-      details,
+      details: details as never,
     });
   }
 

@@ -108,7 +108,7 @@ function RidersPage() {
     });
   }, [riders.data, query, statusFilter]);
 
-  async function logAdminAction(actionType: string, targetId: string, details: object) {
+  async function logAdminAction(actionType: string, targetId: string, details: Record<string, unknown>) {
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
     await supabase.from("admin_actions").insert({
@@ -116,7 +116,7 @@ function RidersPage() {
       action_type: actionType,
       target_table: "riders",
       target_id: targetId,
-      details,
+      details: details as never,
     });
   }
 
@@ -357,7 +357,7 @@ function RidersPage() {
               <Field
                 label="ID document"
                 value={selected.national_id_doc_url ? "Submitted" : "Not submitted"}
-                href={selected.national_id_doc_url ?? undefined}
+                {...(selected.national_id_doc_url ? { href: selected.national_id_doc_url } : {})}
               />
             </Section>
 
@@ -432,7 +432,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, value, href }: { label: string; value: string; href?: string }) {
+function Field({ label, value, href }: { label: string; value: string; href?: string | undefined }) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>

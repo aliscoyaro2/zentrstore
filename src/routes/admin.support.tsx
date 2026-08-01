@@ -92,8 +92,8 @@ function SupportPage() {
 
   async function setStatus(ticketId: string, status: string) {
     const patch: Record<string, unknown> = { status };
-    if (status === "resolved" || status === "closed") patch.resolved_at = new Date().toISOString();
-    const { error } = await supabase.from("support_tickets").update(patch).eq("id", ticketId);
+    if (status === "resolved" || status === "closed") patch["resolved_at"] = new Date().toISOString();
+    const { error } = await supabase.from("support_tickets").update(patch as never).eq("id", ticketId);
     if (error) {
       toast.error("Could not update ticket", { description: error.message });
       return;
@@ -106,7 +106,7 @@ function SupportPage() {
     const { data: userData } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("support_tickets")
-      .update({ assigned_to: userData.user?.id })
+      .update({ assigned_to: userData.user?.id ?? null })
       .eq("id", ticketId);
     if (error) {
       toast.error("Could not assign ticket", { description: error.message });
@@ -121,7 +121,7 @@ function SupportPage() {
     const { data: userData } = await supabase.auth.getUser();
     const { error } = await supabase.from("ticket_messages").insert({
       ticket_id: selectedId,
-      sender_id: userData.user?.id,
+      sender_id: userData.user?.id ?? null,
       body: reply.trim(),
     });
     if (error) {
@@ -135,8 +135,8 @@ function SupportPage() {
 
   async function setIncidentStatus(id: string, status: string) {
     const patch: Record<string, unknown> = { status };
-    if (status === "resolved") patch.resolved_at = new Date().toISOString();
-    const { error } = await supabase.from("incidents").update(patch).eq("id", id);
+    if (status === "resolved") patch["resolved_at"] = new Date().toISOString();
+    const { error } = await supabase.from("incidents").update(patch as never).eq("id", id);
     if (error) {
       toast.error("Could not update incident", { description: error.message });
       return;

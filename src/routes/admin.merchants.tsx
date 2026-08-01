@@ -128,7 +128,7 @@ function MerchantsPage() {
     });
   }, [merchants.data, query, statusFilter]);
 
-  async function logAdminAction(actionType: string, targetId: string, details: object) {
+  async function logAdminAction(actionType: string, targetId: string, details: Record<string, unknown>) {
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
     await supabase.from("admin_actions").insert({
@@ -136,7 +136,7 @@ function MerchantsPage() {
       action_type: actionType,
       target_table: "merchants",
       target_id: targetId,
-      details,
+      details: details as never,
     });
   }
 
@@ -206,9 +206,9 @@ function MerchantsPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-merchants-list"] });
   }
 
-  async function saveEdits(patch: Partial<MerchantRow>) {
+  async function saveEdits(patch: Partial<Omit<MerchantRow, "profiles">>) {
     if (!selected) return;
-    const { error } = await supabase.from("merchants").update(patch).eq("id", selected.id);
+    const { error } = await supabase.from("merchants").update(patch as never).eq("id", selected.id);
     if (error) {
       toast.error("Could not save", { description: error.message });
       return;
@@ -407,7 +407,7 @@ function MerchantsPage() {
                   <Field
                     label="CAC document"
                     value={selected.cac_doc_url ? "Submitted" : "Not submitted"}
-                    href={selected.cac_doc_url ?? undefined}
+                    {...(selected.cac_doc_url ? { href: selected.cac_doc_url } : {})}
                   />
                 </Section>
 
@@ -479,7 +479,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, value, href }: { label: string; value: string; href?: string }) {
+function Field({ label, value, href }: { label: string; value: string; href?: string | undefined }) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
