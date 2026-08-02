@@ -8,6 +8,7 @@ import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell
 import { RiderBottomNav } from "@/components/zentra/rider-bottom-nav";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { useRoleGuard } from "@/hooks/use-role-guard";
+import { useRiderLocationTracking } from "@/hooks/use-rider-location";
 import { naira } from "@/lib/money";
 
 export const Route = createFileRoute("/rider/")({
@@ -163,6 +164,11 @@ function RiderDashboard() {
       await jobs.refetch();
     }
   }
+
+  // Called unconditionally (before any early returns) since hooks can't be
+  // conditional. Internally it no-ops unless riderId is set and active is
+  // true, so this is safe to call even while rider.data is still loading.
+  useRiderLocationTracking(rider.data?.id, Boolean(rider.data?.is_online));
 
   if (!ready) return null;
 
