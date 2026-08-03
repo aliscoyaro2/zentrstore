@@ -28,6 +28,10 @@ const TONE_BY_STATUS: Record<string, "neutral" | "success" | "warning" | "danger
   closed: "neutral",
   // settlements
   processing: "info",
+  // rider applications
+  draft: "neutral",
+  submitted: "warning",
+  rejected: "danger",
 };
 
 const TONE_CLASSES: Record<string, string> = {
