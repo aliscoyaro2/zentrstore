@@ -12,26 +12,18 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useSession();
   const { ready } = useRoleGuard("merchant");
 
-  // Show nothing while checking auth
-  if (loading || !ready) {
-    return (
-      <div className="app-shell flex min-h-screen items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  // If no user, redirect will happen via useRoleGuard
-  if (!user) return null;
-
-  // Fetch the merchant/store for this owner
+  // Hooks must run unconditionally on every render (Rules of Hooks) —
+  // never gate a hook call behind an early return above it. We enable
+  // the query only once we actually have a user, and gate what we
+  // *render* afterward instead.
   const store = useQuery({
-    queryKey: ["merchant-store", user.id],
+    queryKey: ["merchant-store", user?.id],
+    enabled: Boolean(user?.id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
         .select("id, business_name, is_open_override")
-        .eq("owner_id", user.id)
+        .eq("owner_id", user!.id)
         .maybeSingle();
 
       if (error) {
@@ -42,6 +34,19 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
     },
     retry: 1,
   });
+
+  // Show nothing while checking auth (redirect to /login or role-home
+  // happens inside useRoleGuard itself)
+  if (loading || !ready) {
+    return (
+      <div className="app-shell flex min-h-screen items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // If no user, redirect will happen via useRoleGuard
+  if (!user) return null;
 
   // Handle loading state
   if (store.isLoading) {
