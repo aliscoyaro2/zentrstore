@@ -146,7 +146,7 @@ function MetricCard({
   icon: typeof Star;
   label: string;
   value: string;
-  hint?: string;
+  hint?: string | undefined;
 }) {
   return (
     <Panel className="p-4">

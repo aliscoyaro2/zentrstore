@@ -266,10 +266,10 @@ function RiderApplicationsPage() {
                 </DetailSection>
 
                 <DetailSection title="Documents">
-                  <DocLink label="Passport photo" url={signedUrls?.photo_url} />
-                  <DocLink label="License (front)" url={signedUrls?.drivers_license_front_url} />
-                  <DocLink label="License (back)" url={signedUrls?.drivers_license_back_url} />
-                  <DocLink label="Vehicle insurance" url={signedUrls?.vehicle_insurance_url} />
+                  <DocLink label="Passport photo" url={signedUrls?.['photo_url']} />
+                  <DocLink label="License (front)" url={signedUrls?.['drivers_license_front_url']} />
+                  <DocLink label="License (back)" url={signedUrls?.['drivers_license_back_url']} />
+                  <DocLink label="Vehicle insurance" url={signedUrls?.['vehicle_insurance_url']} />
                 </DetailSection>
 
                 {selected.status === "submitted" ? (

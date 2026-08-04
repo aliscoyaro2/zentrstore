@@ -19,7 +19,7 @@ async function assertIsAdmin(supabase: import("@supabase/supabase-js").SupabaseC
   }
 }
 
-const DOCUMENT_COLUMNS = ["cover_photo_url", "owner_id_doc_url", "cac_doc_url"] as const;
+const DOCUMENT_COLUMNS = ["cover_photo_url", "owner_id_doc_url"] as const;
 
 // Fallback used only if platform_settings has no row yet — should not
 // normally be hit since the row is a singleton seeded at project setup.
@@ -129,6 +129,10 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
       .eq("id", ownerId);
     if (profileError) throw new Error(profileError.message);
 
+    if (!app.business_name || !app.category) {
+      throw new Error("This application is missing a business name or category.");
+    }
+
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
       .insert({
@@ -150,7 +154,6 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
         self_delivery: app.self_delivery ?? false,
         pos_available: app.pos_available ?? false,
         cover_photo_url: app.cover_photo_url,
-        cac_doc_url: app.cac_doc_url,
         bank_name: app.bank_name,
         bank_account_number: app.account_number,
         bank_account_name: app.account_name,

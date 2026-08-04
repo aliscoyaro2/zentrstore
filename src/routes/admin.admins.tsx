@@ -72,7 +72,7 @@ function AdminUsersPage() {
       action_type: actionType,
       target_table: "admin_users",
       target_id: targetId,
-      details,
+      details: details as never,
     });
   }
 

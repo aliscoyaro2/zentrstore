@@ -259,10 +259,9 @@ function MerchantApplicationsPage() {
                 </DetailSection>
 
                 <DetailSection title="Documents">
-                  <DocLink label="Store photo / logo" url={signedUrls?.cover_photo_url} />
-                  <DocLink label="Owner ID" url={signedUrls?.owner_id_doc_url} />
-                  <DocLink label="CAC document" url={signedUrls?.cac_doc_url} />
-                </DetailSection>
+                  <DocLink label="Store photo / logo" url={signedUrls?.['cover_photo_url']} />
+                  <DocLink label="Owner ID" url={signedUrls?.['owner_id_doc_url']} />
+                                  </DetailSection>
 
                 {selected.status === "submitted" ? (
                   <div className="flex gap-2 pt-2">
