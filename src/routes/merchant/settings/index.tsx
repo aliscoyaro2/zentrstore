@@ -41,7 +41,7 @@ function MerchantSettingsPage() {
         .from("merchants")
         .select("business_name, phone, address_text, delivery_radius_km, opening_time, closing_time, is_open_override")
         .eq("id", storeId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -63,6 +63,17 @@ function MerchantSettingsPage() {
 
   if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
   if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
+  if (settings.isLoading) return <MerchantLayout>Loading settings...</MerchantLayout>;
+  if (settings.error) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <p className="text-destructive font-semibold">Could not load settings</p>
+          <p className="text-sm text-muted-foreground mt-1">Please try refreshing the page.</p>
+        </div>
+      </MerchantLayout>
+    );
+  }
 
   const canEditSettings = permissions?.settings === "full";
 
