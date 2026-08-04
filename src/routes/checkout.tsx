@@ -44,6 +44,7 @@ function CheckoutPage() {
       const { data, error } = await supabase
         .from("addresses")
         .select("id,label,formatted,is_default")
+        .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
