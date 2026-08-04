@@ -30,6 +30,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: "Orders", to: "/admin/orders", icon: Package },
   { label: "Customers", to: "/admin/customers", icon: Users },
   { label: "Merchants", to: "/admin/merchants", icon: Store },
+  { label: "Merchant Applications", to: "/admin/merchant-applications", icon: ClipboardList },
   { label: "Riders", to: "/admin/riders", icon: Bike },
   { label: "Rider Applications", to: "/admin/rider-applications", icon: ClipboardList },
   { label: "Payments", to: "/admin/payments", icon: Wallet },
