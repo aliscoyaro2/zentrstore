@@ -1,33 +1,49 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Package, Clock, TrendingUp, Star } from "lucide-react";
+import { Package, Clock, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { StatCard } from "@/components/admin/stat-card";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
 import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
-import { useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/merchant/")({
   head: () => ({
     meta: [
       { title: "Merchant Dashboard – Zentra" },
-      { name: "description", content: "Manage your store, orders and products." },
     ],
   }),
   component: MerchantDashboard,
 });
 
 function MerchantDashboard() {
-  const { user } = useSession();
   const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
 
-  // If not loaded or no permission, show nothing (or redirect)
-  if (permsLoading) return <MerchantLayout><div className="animate-pulse p-4">Loading...</div></MerchantLayout>;
-  if (!storeId) return <MerchantLayout><p className="text-sm text-muted-foreground">You are not associated with any store.</p></MerchantLayout>;
+  // Wait for permissions to load
+  if (permsLoading) {
+    return (
+      <MerchantLayout>
+        <div className="flex justify-center py-10">
+          <div className="animate-pulse text-muted-foreground">Loading dashboard...</div>
+        </div>
+      </MerchantLayout>
+    );
+  }
 
-  // Only show full dashboard if permission allows
+  // No store ID
+  if (!storeId) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <p className="text-sm text-muted-foreground">No store associated with this account.</p>
+          <p className="text-xs text-muted-foreground mt-1">Please contact support or register a store.</p>
+        </div>
+      </MerchantLayout>
+    );
+  }
+
+  // Check permission
   const canViewDashboard = permissions?.dashboard === "full" || permissions?.dashboard === "view";
   if (!canViewDashboard) {
     return (
@@ -71,6 +87,7 @@ function MerchantDashboard() {
 
       return { todayCount, totalOrders, revenue, pending };
     },
+    retry: 1,
   });
 
   // Fetch recent orders (limit 5)
@@ -86,7 +103,36 @@ function MerchantDashboard() {
       if (error) throw error;
       return data;
     },
+    retry: 1,
   });
+
+  // Handle loading
+  if (stats.isLoading || recentOrders.isLoading) {
+    return (
+      <MerchantLayout>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-20 animate-pulse rounded-xl bg-secondary" />
+            ))}
+          </div>
+          <div className="h-40 animate-pulse rounded-xl bg-secondary" />
+        </div>
+      </MerchantLayout>
+    );
+  }
+
+  // Handle error
+  if (stats.error || recentOrders.error) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <p className="text-destructive font-semibold">Could not load dashboard data</p>
+          <p className="text-sm text-muted-foreground mt-1">Please try refreshing the page.</p>
+        </div>
+      </MerchantLayout>
+    );
+  }
 
   const data = stats.data;
   const orders = recentOrders.data ?? [];
@@ -105,13 +151,16 @@ function MerchantDashboard() {
           <h2 className="text-sm font-semibold mb-3">Recent orders</h2>
           <div className="space-y-2">
             {orders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No orders yet.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No orders yet.</p>
             ) : (
               orders.map(o => (
-                <div key={o.id} className="flex items-center justify-between rounded-xl border border-border p-3">
+                <div key={o.id} className="flex items-center justify-between rounded-xl border border-border p-3 bg-card">
                   <div>
                     <p className="text-sm font-medium">
-                      {o.order_items?.[0]?.products?.name ? `${o.order_items[0].quantity}× ${o.order_items[0].products.name}` : "Order"}
+                      {o.order_items?.[0]?.products?.name
+                        ? `${o.order_items[0].quantity}× ${o.order_items[0].products.name}`
+                        : "Order"}
+                      {o.order_items?.length && o.order_items.length > 1 && ` +${o.order_items.length - 1} more`}
                     </p>
                     <p className="text-xs text-muted-foreground">{statusLabel(o.status)}</p>
                   </div>
