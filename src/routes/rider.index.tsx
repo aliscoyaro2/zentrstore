@@ -93,6 +93,7 @@ function RiderDashboard() {
         .select(
           "id,status,total_kobo,delivery_fee_kobo,rider_assigned_at,merchants(business_name,address_text),addresses(formatted)",
         )
+        .eq("rider_id", user!.id)
         .order("placed_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -174,7 +175,7 @@ function RiderDashboard() {
 
   if (rider.isFetched && !rider.data) {
     return (
-      <Screen>
+      <Screen navSlot={<RiderBottomNav />}>
         <PageHeader title="Rider" back="/" />
         <div className="px-4 py-8">
           <EmptyState
@@ -182,7 +183,7 @@ function RiderDashboard() {
             body="Apply with your motorcycle details and we'll verify you."
           />
           <Link
-            to="/rider/apply"
+            to="/partners"
             className="mt-4 block rounded-xl bg-primary py-3.5 text-center font-bold text-primary-foreground"
           >
             Apply to ride
