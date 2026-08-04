@@ -36,19 +36,12 @@ function MerchantStaffPage() {
   const [inviteRole, setInviteRole] = useState<typeof ROLES[number]>("manager");
   const [busy, setBusy] = useState(false);
 
-  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
-  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
-
-  const canViewStaff = permissions?.staff === "full" || permissions?.staff === "view";
-  const canManageStaff = permissions?.staff === "full";
-
-  if (!canViewStaff) {
-    return <MerchantLayout><p>You don't have permission to view staff.</p></MerchantLayout>;
-  }
-
-  // Fetch staff list
+  // All hooks must run unconditionally, on every render, in the same
+  // order — never place a hook call after an early `return`. We gate
+  // each query itself with `enabled` and gate what we *render* below.
   const staffQuery = useQuery({
     queryKey: ["merchant-staff-list", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("store_staff")
@@ -63,6 +56,7 @@ function MerchantStaffPage() {
   // Also get the owner (from merchants table) to display them
   const ownerQuery = useQuery({
     queryKey: ["merchant-owner", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
@@ -73,6 +67,16 @@ function MerchantStaffPage() {
       return data;
     },
   });
+
+  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
+  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
+
+  const canViewStaff = permissions?.staff === "full" || permissions?.staff === "view";
+  const canManageStaff = permissions?.staff === "full";
+
+  if (!canViewStaff) {
+    return <MerchantLayout><p>You don't have permission to view staff.</p></MerchantLayout>;
+  }
 
   async function inviteStaff(e: React.FormEvent) {
     e.preventDefault();
