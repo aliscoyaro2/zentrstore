@@ -144,43 +144,30 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* Sell / Ride CTAs */}
+        {/* Sell / Ride CTA */}
         <section className="px-4 pb-10">
           <h2 className="text-xl">Selling or riding instead?</h2>
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <Link
-              to="/merchant/apply"
-              className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-card"
-            >
-              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10">
+          <Link
+            to="/partners"
+            className="mt-4 flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-card"
+          >
+            <span className="flex -space-x-2">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl border-2 border-card bg-primary/10">
                 <Store className="size-5 text-primary" />
               </span>
-              <span className="min-w-0">
-                <span className="block font-display text-base font-extrabold leading-tight">
-                  Sell on Zentra
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  Restaurants, home kitchens, pharmacies, shops — register your store
-                </span>
-              </span>
-            </Link>
-            <Link
-              to="/rider/apply"
-              className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-card"
-            >
-              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl border-2 border-card bg-primary/10">
                 <Bike className="size-5 text-primary" />
               </span>
-              <span className="min-w-0">
-                <span className="block font-display text-base font-extrabold leading-tight">
-                  Ride with Zentra
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  Deliver around Maiduguri on your own motorcycle
-                </span>
+            </span>
+            <span className="min-w-0">
+              <span className="block font-display text-base font-extrabold leading-tight">
+                Partner with Zentra
               </span>
-            </Link>
-          </div>
+              <span className="block text-xs text-muted-foreground">
+                Register your store or apply to ride and deliver
+              </span>
+            </span>
+          </Link>
         </section>
 
         <footer className="border-t border-border px-4 py-6">
