@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
@@ -119,6 +117,57 @@ export type Database = {
           },
         ]
       }
+      cancellation_requests: {
+        Row: {
+          created_at: string
+          id: string
+          incident_id: string | null
+          order_id: string
+          reason: string | null
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          order_id: string
+          reason?: string | null
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          order_id?: string
+          reason?: string | null
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cancellation_requests_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cancellation_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           created_at: string | null
@@ -205,6 +254,123 @@ export type Database = {
           },
         ]
       }
+      merchant_applications: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          address_text: string | null
+          agreement_accepted_at: string | null
+          agreement_signature_name: string | null
+          bank_name: string | null
+          business_description: string | null
+          business_name: string | null
+          category: Database["public"]["Enums"]["merchant_category"] | null
+          closing_time: string | null
+          commission_agreement_accepted: boolean
+          cover_photo_url: string | null
+          created_at: string
+          email: string
+          email_verified_at: string | null
+          id: string
+          lga: string | null
+          opening_time: string | null
+          owner_id_doc_url: string | null
+          phone: string | null
+          pos_available: boolean | null
+          prep_time_mins: number | null
+          promoted_merchant_id: string | null
+          referral_source: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          self_delivery: boolean | null
+          status: Database["public"]["Enums"]["merchant_application_status"]
+          tin: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          address_text?: string | null
+          agreement_accepted_at?: string | null
+          agreement_signature_name?: string | null
+          bank_name?: string | null
+          business_description?: string | null
+          business_name?: string | null
+          category?: Database["public"]["Enums"]["merchant_category"] | null
+          closing_time?: string | null
+          commission_agreement_accepted?: boolean
+          cover_photo_url?: string | null
+          created_at?: string
+          email: string
+          email_verified_at?: string | null
+          id?: string
+          lga?: string | null
+          opening_time?: string | null
+          owner_id_doc_url?: string | null
+          phone?: string | null
+          pos_available?: boolean | null
+          prep_time_mins?: number | null
+          promoted_merchant_id?: string | null
+          referral_source?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          self_delivery?: boolean | null
+          status?: Database["public"]["Enums"]["merchant_application_status"]
+          tin?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          address_text?: string | null
+          agreement_accepted_at?: string | null
+          agreement_signature_name?: string | null
+          bank_name?: string | null
+          business_description?: string | null
+          business_name?: string | null
+          category?: Database["public"]["Enums"]["merchant_category"] | null
+          closing_time?: string | null
+          commission_agreement_accepted?: boolean
+          cover_photo_url?: string | null
+          created_at?: string
+          email?: string
+          email_verified_at?: string | null
+          id?: string
+          lga?: string | null
+          opening_time?: string | null
+          owner_id_doc_url?: string | null
+          phone?: string | null
+          pos_available?: boolean | null
+          prep_time_mins?: number | null
+          promoted_merchant_id?: string | null
+          referral_source?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          self_delivery?: boolean | null
+          status?: Database["public"]["Enums"]["merchant_application_status"]
+          tin?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_applications_promoted_merchant_id_fkey"
+            columns: ["promoted_merchant_id"]
+            isOneToOne: false
+            referencedRelation: "merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       merchant_balances: {
         Row: {
           balance_kobo: number
@@ -237,6 +403,7 @@ export type Database = {
           bank_account_name: string | null
           bank_account_number: string | null
           bank_name: string | null
+          business_description: string | null
           business_name: string
           cac_doc_url: string | null
           category: Database["public"]["Enums"]["merchant_category"]
@@ -252,7 +419,10 @@ export type Database = {
           opening_time: string | null
           owner_id: string | null
           phone: string | null
+          pos_available: boolean
+          prep_time_mins: number | null
           rejection_reason: string | null
+          self_delivery: boolean
           status: Database["public"]["Enums"]["approval_status"]
         }
         Insert: {
@@ -260,6 +430,7 @@ export type Database = {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          business_description?: string | null
           business_name: string
           cac_doc_url?: string | null
           category: Database["public"]["Enums"]["merchant_category"]
@@ -275,7 +446,10 @@ export type Database = {
           opening_time?: string | null
           owner_id?: string | null
           phone?: string | null
+          pos_available?: boolean
+          prep_time_mins?: number | null
           rejection_reason?: string | null
+          self_delivery?: boolean
           status?: Database["public"]["Enums"]["approval_status"]
         }
         Update: {
@@ -283,6 +457,7 @@ export type Database = {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          business_description?: string | null
           business_name?: string
           cac_doc_url?: string | null
           category?: Database["public"]["Enums"]["merchant_category"]
@@ -298,7 +473,10 @@ export type Database = {
           opening_time?: string | null
           owner_id?: string | null
           phone?: string | null
+          pos_available?: boolean
+          prep_time_mins?: number | null
           rejection_reason?: string | null
+          self_delivery?: boolean
           status?: Database["public"]["Enums"]["approval_status"]
         }
         Relationships: [
@@ -486,6 +664,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          batch_id: string | null
           cancel_reason: string | null
           cancelled_at: string | null
           customer_id: string | null
@@ -497,6 +676,7 @@ export type Database = {
           paid_at: string | null
           payment_reference: string
           placed_at: string | null
+          rider_assigned_at: string | null
           rider_id: string | null
           service_fee_kobo: number
           status: Database["public"]["Enums"]["order_status"]
@@ -504,6 +684,7 @@ export type Database = {
           total_kobo: number
         }
         Insert: {
+          batch_id?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
           customer_id?: string | null
@@ -515,6 +696,7 @@ export type Database = {
           paid_at?: string | null
           payment_reference: string
           placed_at?: string | null
+          rider_assigned_at?: string | null
           rider_id?: string | null
           service_fee_kobo: number
           status?: Database["public"]["Enums"]["order_status"]
@@ -522,6 +704,7 @@ export type Database = {
           total_kobo: number
         }
         Update: {
+          batch_id?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
           customer_id?: string | null
@@ -533,6 +716,7 @@ export type Database = {
           paid_at?: string | null
           payment_reference?: string
           placed_at?: string | null
+          rider_assigned_at?: string | null
           rider_id?: string | null
           service_fee_kobo?: number
           status?: Database["public"]["Enums"]["order_status"]
@@ -831,6 +1015,171 @@ export type Database = {
           },
         ]
       }
+      rider_applications: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          agreement_accepted_at: string | null
+          agreement_signature_name: string | null
+          bank_name: string | null
+          created_at: string
+          criminal_record_details: string | null
+          date_of_birth: string | null
+          drivers_license_back_url: string | null
+          drivers_license_front_url: string | null
+          drivers_license_number: string | null
+          email: string
+          email_verified_at: string | null
+          full_name: string | null
+          gender: string | null
+          has_criminal_record: boolean | null
+          id: string
+          lga: string | null
+          next_of_kin_name: string | null
+          next_of_kin_phone: string | null
+          next_of_kin_relationship: string | null
+          phone: string | null
+          photo_url: string | null
+          plate_number: string | null
+          previous_delivery_experience: string | null
+          promoted_rider_id: string | null
+          referral_source: string | null
+          rejection_reason: string | null
+          residential_address: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["rider_application_status"]
+          updated_at: string
+          vehicle_insurance_url: string | null
+          vehicle_ownership: string | null
+          vehicle_type: string | null
+          years_riding_experience: number | null
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          agreement_accepted_at?: string | null
+          agreement_signature_name?: string | null
+          bank_name?: string | null
+          created_at?: string
+          criminal_record_details?: string | null
+          date_of_birth?: string | null
+          drivers_license_back_url?: string | null
+          drivers_license_front_url?: string | null
+          drivers_license_number?: string | null
+          email: string
+          email_verified_at?: string | null
+          full_name?: string | null
+          gender?: string | null
+          has_criminal_record?: boolean | null
+          id?: string
+          lga?: string | null
+          next_of_kin_name?: string | null
+          next_of_kin_phone?: string | null
+          next_of_kin_relationship?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          plate_number?: string | null
+          previous_delivery_experience?: string | null
+          promoted_rider_id?: string | null
+          referral_source?: string | null
+          rejection_reason?: string | null
+          residential_address?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["rider_application_status"]
+          updated_at?: string
+          vehicle_insurance_url?: string | null
+          vehicle_ownership?: string | null
+          vehicle_type?: string | null
+          years_riding_experience?: number | null
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          agreement_accepted_at?: string | null
+          agreement_signature_name?: string | null
+          bank_name?: string | null
+          created_at?: string
+          criminal_record_details?: string | null
+          date_of_birth?: string | null
+          drivers_license_back_url?: string | null
+          drivers_license_front_url?: string | null
+          drivers_license_number?: string | null
+          email?: string
+          email_verified_at?: string | null
+          full_name?: string | null
+          gender?: string | null
+          has_criminal_record?: boolean | null
+          id?: string
+          lga?: string | null
+          next_of_kin_name?: string | null
+          next_of_kin_phone?: string | null
+          next_of_kin_relationship?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          plate_number?: string | null
+          previous_delivery_experience?: string | null
+          promoted_rider_id?: string | null
+          referral_source?: string | null
+          rejection_reason?: string | null
+          residential_address?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["rider_application_status"]
+          updated_at?: string
+          vehicle_insurance_url?: string | null
+          vehicle_ownership?: string | null
+          vehicle_type?: string | null
+          years_riding_experience?: number | null
+        }
+        Relationships: []
+      }
+      rider_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          order_id: string | null
+          rider_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          rider_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          order_id?: string | null
+          rider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_audit_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_audit_log_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rider_balances: {
         Row: {
           balance_kobo: number
@@ -860,56 +1209,129 @@ export type Database = {
       riders: {
         Row: {
           acceptance_rate: number
+          account_name: string | null
+          account_number: string | null
+          agreement_accepted_at: string | null
+          agreement_signature_name: string | null
+          application_id: string | null
+          bank_name: string | null
+          consecutive_missed_offers: number
           created_at: string | null
           current_lat: number | null
           current_lng: number | null
+          date_of_birth: string | null
+          drivers_license_back_url: string | null
+          drivers_license_front_url: string | null
+          drivers_license_number: string | null
+          gender: string | null
           id: string
           is_online: boolean | null
           last_location_at: string | null
+          lga: string | null
           national_id_doc_url: string | null
+          next_of_kin_name: string | null
+          next_of_kin_phone: string | null
+          next_of_kin_relationship: string | null
+          phone: string | null
           photo_url: string | null
           plate_number: string | null
           rating_avg: number | null
+          referral_source: string | null
+          residential_address: string | null
           status: Database["public"]["Enums"]["approval_status"]
           total_deliveries: number | null
+          vehicle_insurance_url: string | null
           vehicle_make: string | null
           vehicle_model: string | null
+          vehicle_ownership: string | null
+          years_riding_experience: number | null
         }
         Insert: {
           acceptance_rate?: number
+          account_name?: string | null
+          account_number?: string | null
+          agreement_accepted_at?: string | null
+          agreement_signature_name?: string | null
+          application_id?: string | null
+          bank_name?: string | null
+          consecutive_missed_offers?: number
           created_at?: string | null
           current_lat?: number | null
           current_lng?: number | null
+          date_of_birth?: string | null
+          drivers_license_back_url?: string | null
+          drivers_license_front_url?: string | null
+          drivers_license_number?: string | null
+          gender?: string | null
           id: string
           is_online?: boolean | null
           last_location_at?: string | null
+          lga?: string | null
           national_id_doc_url?: string | null
+          next_of_kin_name?: string | null
+          next_of_kin_phone?: string | null
+          next_of_kin_relationship?: string | null
+          phone?: string | null
           photo_url?: string | null
           plate_number?: string | null
           rating_avg?: number | null
+          referral_source?: string | null
+          residential_address?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
           total_deliveries?: number | null
+          vehicle_insurance_url?: string | null
           vehicle_make?: string | null
           vehicle_model?: string | null
+          vehicle_ownership?: string | null
+          years_riding_experience?: number | null
         }
         Update: {
           acceptance_rate?: number
+          account_name?: string | null
+          account_number?: string | null
+          agreement_accepted_at?: string | null
+          agreement_signature_name?: string | null
+          application_id?: string | null
+          bank_name?: string | null
+          consecutive_missed_offers?: number
           created_at?: string | null
           current_lat?: number | null
           current_lng?: number | null
+          date_of_birth?: string | null
+          drivers_license_back_url?: string | null
+          drivers_license_front_url?: string | null
+          drivers_license_number?: string | null
+          gender?: string | null
           id?: string
           is_online?: boolean | null
           last_location_at?: string | null
+          lga?: string | null
           national_id_doc_url?: string | null
+          next_of_kin_name?: string | null
+          next_of_kin_phone?: string | null
+          next_of_kin_relationship?: string | null
+          phone?: string | null
           photo_url?: string | null
           plate_number?: string | null
           rating_avg?: number | null
+          referral_source?: string | null
+          residential_address?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
           total_deliveries?: number | null
+          vehicle_insurance_url?: string | null
           vehicle_make?: string | null
           vehicle_model?: string | null
+          vehicle_ownership?: string | null
+          years_riding_experience?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "riders_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rider_applications"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "riders_id_fkey"
             columns: ["id"]
@@ -1125,10 +1547,22 @@ export type Database = {
     }
     Functions: {
       accept_order_offer: { Args: { p_offer_id: string }; Returns: boolean }
+      admin_review_cancellation: {
+        Args: { p_approve: boolean; p_note: string; p_request_id: string }
+        Returns: undefined
+      }
       decline_order_offer: { Args: { p_offer_id: string }; Returns: undefined }
       dispatch_order: { Args: { p_order_id: string }; Returns: string }
       expire_and_reassign_offers: { Args: never; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
+      log_rider_arrival: {
+        Args: { p_leg: string; p_order_id: string }
+        Returns: undefined
+      }
+      request_order_cancellation: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: string
+      }
     }
     Enums: {
       admin_role:
@@ -1155,6 +1589,11 @@ export type Database = {
         | "refund"
         | "delivery_margin"
         | "service_fee"
+      merchant_application_status:
+        | "draft"
+        | "submitted"
+        | "approved"
+        | "rejected"
       merchant_category:
         | "restaurant"
         | "home_kitchen"
@@ -1198,6 +1637,7 @@ export type Database = {
         | "refunded"
         | "failed"
         | "cancelled"
+      rider_application_status: "draft" | "submitted" | "approved" | "rejected"
       settlement_party: "merchant" | "rider"
       settlement_status: "pending" | "processing" | "paid" | "failed"
       ticket_category: "customer" | "merchant" | "rider" | "payment" | "other"
@@ -1357,6 +1797,12 @@ export const Constants = {
         "delivery_margin",
         "service_fee",
       ],
+      merchant_application_status: [
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+      ],
       merchant_category: [
         "restaurant",
         "home_kitchen",
@@ -1398,6 +1844,7 @@ export const Constants = {
         "failed",
         "cancelled",
       ],
+      rider_application_status: ["draft", "submitted", "approved", "rejected"],
       settlement_party: ["merchant", "rider"],
       settlement_status: ["pending", "processing", "paid", "failed"],
       ticket_category: ["customer", "merchant", "rider", "payment", "other"],
