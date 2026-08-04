@@ -22,12 +22,15 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AccountEditRouteImport } from './routes/account.edit'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAdminsRouteImport } from './routes/admin.admins'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 import { Route as AdminAuditLogsRouteImport } from './routes/admin.audit-logs'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
+import { Route as AdminMerchantApplicationsRouteImport } from './routes/admin.merchant-applications'
 import { Route as AdminMerchantsRouteImport } from './routes/admin.merchants'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminRiderApplicationsRouteImport } from './routes/admin.rider-applications'
 import { Route as AdminRidersRouteImport } from './routes/admin.riders'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSupportRouteImport } from './routes/admin.support'
@@ -37,8 +40,16 @@ import { Route as MerchantApplyRouteImport } from './routes/merchant.apply'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders.$orderId'
 import { Route as RiderIndexRouteImport } from './routes/rider.index'
+import { Route as RiderAccountRouteImport } from './routes/rider.account'
 import { Route as RiderApplyRouteImport } from './routes/rider.apply'
+import { Route as RiderPerformanceRouteImport } from './routes/rider.performance'
+import { Route as RiderSupportRouteImport } from './routes/rider.support'
+import { Route as RiderWalletRouteImport } from './routes/rider.wallet'
 import { Route as StoreMerchantIdRouteImport } from './routes/store.$merchantId'
+import { Route as MerchantApplyFormRouteImport } from './routes/merchant.apply.form'
+import { Route as MerchantApplySubmittedRouteImport } from './routes/merchant.apply.submitted'
+import { Route as RiderApplyFormRouteImport } from './routes/rider.apply.form'
+import { Route as RiderApplySubmittedRouteImport } from './routes/rider.apply.submitted'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -105,6 +116,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAdminsRoute = AdminAdminsRouteImport.update({
+  id: '/admin/admins',
+  path: '/admin/admins',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
   id: '/admin/analytics',
   path: '/admin/analytics',
@@ -120,6 +136,12 @@ const AdminCustomersRoute = AdminCustomersRouteImport.update({
   path: '/admin/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMerchantApplicationsRoute =
+  AdminMerchantApplicationsRouteImport.update({
+    id: '/admin/merchant-applications',
+    path: '/admin/merchant-applications',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminMerchantsRoute = AdminMerchantsRouteImport.update({
   id: '/admin/merchants',
   path: '/admin/merchants',
@@ -133,6 +155,11 @@ const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
 const AdminOrdersRoute = AdminOrdersRouteImport.update({
   id: '/admin/orders',
   path: '/admin/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRiderApplicationsRoute = AdminRiderApplicationsRouteImport.update({
+  id: '/admin/rider-applications',
+  path: '/admin/rider-applications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRidersRoute = AdminRidersRouteImport.update({
@@ -180,15 +207,55 @@ const RiderIndexRoute = RiderIndexRouteImport.update({
   path: '/rider/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RiderAccountRoute = RiderAccountRouteImport.update({
+  id: '/rider/account',
+  path: '/rider/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RiderApplyRoute = RiderApplyRouteImport.update({
   id: '/rider/apply',
   path: '/rider/apply',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RiderPerformanceRoute = RiderPerformanceRouteImport.update({
+  id: '/rider/performance',
+  path: '/rider/performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RiderSupportRoute = RiderSupportRouteImport.update({
+  id: '/rider/support',
+  path: '/rider/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RiderWalletRoute = RiderWalletRouteImport.update({
+  id: '/rider/wallet',
+  path: '/rider/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StoreMerchantIdRoute = StoreMerchantIdRouteImport.update({
   id: '/store/$merchantId',
   path: '/store/$merchantId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const MerchantApplyFormRoute = MerchantApplyFormRouteImport.update({
+  id: '/form',
+  path: '/form',
+  getParentRoute: () => MerchantApplyRoute,
+} as any)
+const MerchantApplySubmittedRoute = MerchantApplySubmittedRouteImport.update({
+  id: '/submitted',
+  path: '/submitted',
+  getParentRoute: () => MerchantApplyRoute,
+} as any)
+const RiderApplyFormRoute = RiderApplyFormRouteImport.update({
+  id: '/form',
+  path: '/form',
+  getParentRoute: () => RiderApplyRoute,
+} as any)
+const RiderApplySubmittedRoute = RiderApplySubmittedRouteImport.update({
+  id: '/submitted',
+  path: '/submitted',
+  getParentRoute: () => RiderApplyRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -204,24 +271,35 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
   '/account/edit': typeof AccountEditRoute
+  '/admin/admins': typeof AdminAdminsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/merchant-applications': typeof AdminMerchantApplicationsRoute
   '/admin/merchants': typeof AdminMerchantsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/rider-applications': typeof AdminRiderApplicationsRoute
   '/admin/riders': typeof AdminRidersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/support': typeof AdminSupportRoute
   '/admin/zones': typeof AdminZonesRoute
-  '/merchant/apply': typeof MerchantApplyRoute
+  '/merchant/apply': typeof MerchantApplyRouteWithChildren
   '/orders/$orderId': typeof OrdersOrderIdRoute
-  '/rider/apply': typeof RiderApplyRoute
+  '/rider/account': typeof RiderAccountRoute
+  '/rider/apply': typeof RiderApplyRouteWithChildren
+  '/rider/performance': typeof RiderPerformanceRoute
+  '/rider/support': typeof RiderSupportRoute
+  '/rider/wallet': typeof RiderWalletRoute
   '/store/$merchantId': typeof StoreMerchantIdRoute
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/rider/': typeof RiderIndexRoute
+  '/merchant/apply/form': typeof MerchantApplyFormRoute
+  '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
+  '/rider/apply/form': typeof RiderApplyFormRoute
+  '/rider/apply/submitted': typeof RiderApplySubmittedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -236,24 +314,35 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
   '/account/edit': typeof AccountEditRoute
+  '/admin/admins': typeof AdminAdminsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/merchant-applications': typeof AdminMerchantApplicationsRoute
   '/admin/merchants': typeof AdminMerchantsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/rider-applications': typeof AdminRiderApplicationsRoute
   '/admin/riders': typeof AdminRidersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/support': typeof AdminSupportRoute
   '/admin/zones': typeof AdminZonesRoute
-  '/merchant/apply': typeof MerchantApplyRoute
+  '/merchant/apply': typeof MerchantApplyRouteWithChildren
   '/orders/$orderId': typeof OrdersOrderIdRoute
-  '/rider/apply': typeof RiderApplyRoute
+  '/rider/account': typeof RiderAccountRoute
+  '/rider/apply': typeof RiderApplyRouteWithChildren
+  '/rider/performance': typeof RiderPerformanceRoute
+  '/rider/support': typeof RiderSupportRoute
+  '/rider/wallet': typeof RiderWalletRoute
   '/store/$merchantId': typeof StoreMerchantIdRoute
   '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
   '/orders': typeof OrdersIndexRoute
   '/rider': typeof RiderIndexRoute
+  '/merchant/apply/form': typeof MerchantApplyFormRoute
+  '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
+  '/rider/apply/form': typeof RiderApplyFormRoute
+  '/rider/apply/submitted': typeof RiderApplySubmittedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -269,24 +358,35 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
   '/account/edit': typeof AccountEditRoute
+  '/admin/admins': typeof AdminAdminsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/customers': typeof AdminCustomersRoute
+  '/admin/merchant-applications': typeof AdminMerchantApplicationsRoute
   '/admin/merchants': typeof AdminMerchantsRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/rider-applications': typeof AdminRiderApplicationsRoute
   '/admin/riders': typeof AdminRidersRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/support': typeof AdminSupportRoute
   '/admin/zones': typeof AdminZonesRoute
-  '/merchant/apply': typeof MerchantApplyRoute
+  '/merchant/apply': typeof MerchantApplyRouteWithChildren
   '/orders/$orderId': typeof OrdersOrderIdRoute
-  '/rider/apply': typeof RiderApplyRoute
+  '/rider/account': typeof RiderAccountRoute
+  '/rider/apply': typeof RiderApplyRouteWithChildren
+  '/rider/performance': typeof RiderPerformanceRoute
+  '/rider/support': typeof RiderSupportRoute
+  '/rider/wallet': typeof RiderWalletRoute
   '/store/$merchantId': typeof StoreMerchantIdRoute
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/rider/': typeof RiderIndexRoute
+  '/merchant/apply/form': typeof MerchantApplyFormRoute
+  '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
+  '/rider/apply/form': typeof RiderApplyFormRoute
+  '/rider/apply/submitted': typeof RiderApplySubmittedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -303,24 +403,35 @@ export interface FileRouteTypes {
     | '/register'
     | '/settings'
     | '/account/edit'
+    | '/admin/admins'
     | '/admin/analytics'
     | '/admin/audit-logs'
     | '/admin/customers'
+    | '/admin/merchant-applications'
     | '/admin/merchants'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/rider-applications'
     | '/admin/riders'
     | '/admin/settings'
     | '/admin/support'
     | '/admin/zones'
     | '/merchant/apply'
     | '/orders/$orderId'
+    | '/rider/account'
     | '/rider/apply'
+    | '/rider/performance'
+    | '/rider/support'
+    | '/rider/wallet'
     | '/store/$merchantId'
     | '/admin/'
     | '/merchant/'
     | '/orders/'
     | '/rider/'
+    | '/merchant/apply/form'
+    | '/merchant/apply/submitted'
+    | '/rider/apply/form'
+    | '/rider/apply/submitted'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -335,24 +446,35 @@ export interface FileRouteTypes {
     | '/register'
     | '/settings'
     | '/account/edit'
+    | '/admin/admins'
     | '/admin/analytics'
     | '/admin/audit-logs'
     | '/admin/customers'
+    | '/admin/merchant-applications'
     | '/admin/merchants'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/rider-applications'
     | '/admin/riders'
     | '/admin/settings'
     | '/admin/support'
     | '/admin/zones'
     | '/merchant/apply'
     | '/orders/$orderId'
+    | '/rider/account'
     | '/rider/apply'
+    | '/rider/performance'
+    | '/rider/support'
+    | '/rider/wallet'
     | '/store/$merchantId'
     | '/admin'
     | '/merchant'
     | '/orders'
     | '/rider'
+    | '/merchant/apply/form'
+    | '/merchant/apply/submitted'
+    | '/rider/apply/form'
+    | '/rider/apply/submitted'
   id:
     | '__root__'
     | '/'
@@ -367,24 +489,35 @@ export interface FileRouteTypes {
     | '/register'
     | '/settings'
     | '/account/edit'
+    | '/admin/admins'
     | '/admin/analytics'
     | '/admin/audit-logs'
     | '/admin/customers'
+    | '/admin/merchant-applications'
     | '/admin/merchants'
     | '/admin/notifications'
     | '/admin/orders'
+    | '/admin/rider-applications'
     | '/admin/riders'
     | '/admin/settings'
     | '/admin/support'
     | '/admin/zones'
     | '/merchant/apply'
     | '/orders/$orderId'
+    | '/rider/account'
     | '/rider/apply'
+    | '/rider/performance'
+    | '/rider/support'
+    | '/rider/wallet'
     | '/store/$merchantId'
     | '/admin/'
     | '/merchant/'
     | '/orders/'
     | '/rider/'
+    | '/merchant/apply/form'
+    | '/merchant/apply/submitted'
+    | '/rider/apply/form'
+    | '/rider/apply/submitted'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -399,19 +532,26 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   SettingsRoute: typeof SettingsRoute
+  AdminAdminsRoute: typeof AdminAdminsRoute
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminAuditLogsRoute: typeof AdminAuditLogsRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
+  AdminMerchantApplicationsRoute: typeof AdminMerchantApplicationsRoute
   AdminMerchantsRoute: typeof AdminMerchantsRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminRiderApplicationsRoute: typeof AdminRiderApplicationsRoute
   AdminRidersRoute: typeof AdminRidersRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSupportRoute: typeof AdminSupportRoute
   AdminZonesRoute: typeof AdminZonesRoute
-  MerchantApplyRoute: typeof MerchantApplyRoute
+  MerchantApplyRoute: typeof MerchantApplyRouteWithChildren
   OrdersOrderIdRoute: typeof OrdersOrderIdRoute
-  RiderApplyRoute: typeof RiderApplyRoute
+  RiderAccountRoute: typeof RiderAccountRoute
+  RiderApplyRoute: typeof RiderApplyRouteWithChildren
+  RiderPerformanceRoute: typeof RiderPerformanceRoute
+  RiderSupportRoute: typeof RiderSupportRoute
+  RiderWalletRoute: typeof RiderWalletRoute
   StoreMerchantIdRoute: typeof StoreMerchantIdRoute
   AdminIndexRoute: typeof AdminIndexRoute
   MerchantIndexRoute: typeof MerchantIndexRoute
@@ -512,6 +652,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/admins': {
+      id: '/admin/admins'
+      path: '/admin/admins'
+      fullPath: '/admin/admins'
+      preLoaderRoute: typeof AdminAdminsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/analytics': {
       id: '/admin/analytics'
       path: '/admin/analytics'
@@ -533,6 +680,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/merchant-applications': {
+      id: '/admin/merchant-applications'
+      path: '/admin/merchant-applications'
+      fullPath: '/admin/merchant-applications'
+      preLoaderRoute: typeof AdminMerchantApplicationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/merchants': {
       id: '/admin/merchants'
       path: '/admin/merchants'
@@ -552,6 +706,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/orders'
       fullPath: '/admin/orders'
       preLoaderRoute: typeof AdminOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/rider-applications': {
+      id: '/admin/rider-applications'
+      path: '/admin/rider-applications'
+      fullPath: '/admin/rider-applications'
+      preLoaderRoute: typeof AdminRiderApplicationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/riders': {
@@ -617,11 +778,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RiderIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rider/account': {
+      id: '/rider/account'
+      path: '/rider/account'
+      fullPath: '/rider/account'
+      preLoaderRoute: typeof RiderAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rider/apply': {
       id: '/rider/apply'
       path: '/rider/apply'
       fullPath: '/rider/apply'
       preLoaderRoute: typeof RiderApplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rider/performance': {
+      id: '/rider/performance'
+      path: '/rider/performance'
+      fullPath: '/rider/performance'
+      preLoaderRoute: typeof RiderPerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rider/support': {
+      id: '/rider/support'
+      path: '/rider/support'
+      fullPath: '/rider/support'
+      preLoaderRoute: typeof RiderSupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rider/wallet': {
+      id: '/rider/wallet'
+      path: '/rider/wallet'
+      fullPath: '/rider/wallet'
+      preLoaderRoute: typeof RiderWalletRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/store/$merchantId': {
@@ -630,6 +819,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/store/$merchantId'
       preLoaderRoute: typeof StoreMerchantIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/merchant/apply/form': {
+      id: '/merchant/apply/form'
+      path: '/form'
+      fullPath: '/merchant/apply/form'
+      preLoaderRoute: typeof MerchantApplyFormRouteImport
+      parentRoute: typeof MerchantApplyRoute
+    }
+    '/merchant/apply/submitted': {
+      id: '/merchant/apply/submitted'
+      path: '/submitted'
+      fullPath: '/merchant/apply/submitted'
+      preLoaderRoute: typeof MerchantApplySubmittedRouteImport
+      parentRoute: typeof MerchantApplyRoute
+    }
+    '/rider/apply/form': {
+      id: '/rider/apply/form'
+      path: '/form'
+      fullPath: '/rider/apply/form'
+      preLoaderRoute: typeof RiderApplyFormRouteImport
+      parentRoute: typeof RiderApplyRoute
+    }
+    '/rider/apply/submitted': {
+      id: '/rider/apply/submitted'
+      path: '/submitted'
+      fullPath: '/rider/apply/submitted'
+      preLoaderRoute: typeof RiderApplySubmittedRouteImport
+      parentRoute: typeof RiderApplyRoute
     }
   }
 }
@@ -645,6 +862,34 @@ const AccountRouteChildren: AccountRouteChildren = {
 const AccountRouteWithChildren =
   AccountRoute._addFileChildren(AccountRouteChildren)
 
+interface MerchantApplyRouteChildren {
+  MerchantApplyFormRoute: typeof MerchantApplyFormRoute
+  MerchantApplySubmittedRoute: typeof MerchantApplySubmittedRoute
+}
+
+const MerchantApplyRouteChildren: MerchantApplyRouteChildren = {
+  MerchantApplyFormRoute: MerchantApplyFormRoute,
+  MerchantApplySubmittedRoute: MerchantApplySubmittedRoute,
+}
+
+const MerchantApplyRouteWithChildren = MerchantApplyRoute._addFileChildren(
+  MerchantApplyRouteChildren,
+)
+
+interface RiderApplyRouteChildren {
+  RiderApplyFormRoute: typeof RiderApplyFormRoute
+  RiderApplySubmittedRoute: typeof RiderApplySubmittedRoute
+}
+
+const RiderApplyRouteChildren: RiderApplyRouteChildren = {
+  RiderApplyFormRoute: RiderApplyFormRoute,
+  RiderApplySubmittedRoute: RiderApplySubmittedRoute,
+}
+
+const RiderApplyRouteWithChildren = RiderApplyRoute._addFileChildren(
+  RiderApplyRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
@@ -657,19 +902,26 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   SettingsRoute: SettingsRoute,
+  AdminAdminsRoute: AdminAdminsRoute,
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminAuditLogsRoute: AdminAuditLogsRoute,
   AdminCustomersRoute: AdminCustomersRoute,
+  AdminMerchantApplicationsRoute: AdminMerchantApplicationsRoute,
   AdminMerchantsRoute: AdminMerchantsRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
+  AdminRiderApplicationsRoute: AdminRiderApplicationsRoute,
   AdminRidersRoute: AdminRidersRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSupportRoute: AdminSupportRoute,
   AdminZonesRoute: AdminZonesRoute,
-  MerchantApplyRoute: MerchantApplyRoute,
+  MerchantApplyRoute: MerchantApplyRouteWithChildren,
   OrdersOrderIdRoute: OrdersOrderIdRoute,
-  RiderApplyRoute: RiderApplyRoute,
+  RiderAccountRoute: RiderAccountRoute,
+  RiderApplyRoute: RiderApplyRouteWithChildren,
+  RiderPerformanceRoute: RiderPerformanceRoute,
+  RiderSupportRoute: RiderSupportRoute,
+  RiderWalletRoute: RiderWalletRoute,
   StoreMerchantIdRoute: StoreMerchantIdRoute,
   AdminIndexRoute: AdminIndexRoute,
   MerchantIndexRoute: MerchantIndexRoute,
