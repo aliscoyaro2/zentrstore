@@ -30,14 +30,12 @@ function MerchantSettingsPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
-  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
-
-  const canEditSettings = permissions?.settings === "full";
-
-  // Fetch current settings
+  // All hooks must run unconditionally, on every render, in the same
+  // order — never place a hook call after an early `return`. We gate
+  // the query itself with `enabled` and gate what we *render* below.
   const settings = useQuery({
     queryKey: ["merchant-settings", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
@@ -62,6 +60,11 @@ function MerchantSettingsPage() {
       });
     }
   }, [settings.data]);
+
+  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
+  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
+
+  const canEditSettings = permissions?.settings === "full";
 
   async function saveSettings(e: React.FormEvent) {
     e.preventDefault();
