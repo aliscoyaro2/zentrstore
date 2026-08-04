@@ -179,13 +179,13 @@ export const saveMerchantApplicationStep = createServerFn({ method: "POST" })
 
     const update: Record<string, unknown> = { ...parsed, updated_at: new Date().toISOString() };
     if (data.step === 4 && (parsed as z.infer<typeof stepFourSchema>).agreement_accepted) {
-      update.agreement_accepted_at = new Date().toISOString();
-      delete update.agreement_accepted; // not a real column
+      update['agreement_accepted_at'] = new Date().toISOString();
+      delete update['agreement_accepted']; // not a real column
     }
 
     const { error } = await supabaseAdmin
       .from("merchant_applications")
-      .update(update)
+      .update(update as never)
       .eq("id", data.applicationToken)
       .eq("status", "draft"); // never allow editing a submitted/reviewed application
 
@@ -263,7 +263,7 @@ export const uploadMerchantApplicationDocument = createServerFn({ method: "POST"
     // minted on demand for admin review (see merchant-application-admin.functions.ts).
     const { error: updateError } = await supabaseAdmin
       .from("merchant_applications")
-      .update({ [COLUMN_FOR_KIND[kind]]: path, updated_at: new Date().toISOString() })
+      .update({ [COLUMN_FOR_KIND[kind]]: path, updated_at: new Date().toISOString() } as never)
       .eq("id", applicationToken);
 
     if (updateError) throw new Error(updateError.message);

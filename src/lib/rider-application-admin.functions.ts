@@ -150,7 +150,7 @@ export const approveRiderApplication = createServerFn({ method: "POST" })
       agreement_accepted_at: app.agreement_accepted_at,
       agreement_signature_name: app.agreement_signature_name,
       application_id: app.id,
-    });
+    } as never);
     if (riderError) throw new Error(riderError.message);
 
     const { error: updateError } = await supabaseAdmin

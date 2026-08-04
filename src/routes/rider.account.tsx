@@ -98,7 +98,7 @@ function RiderAccount() {
   if (!ready) return null;
 
   const status = rider.data?.status ?? "pending";
-  const statusMeta = STATUS_COPY[status] ?? STATUS_COPY.pending;
+  const statusMeta = STATUS_COPY[status] ?? STATUS_COPY['pending']!;
   const StatusIcon = statusMeta.icon;
 
   return (
