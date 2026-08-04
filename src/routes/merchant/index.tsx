@@ -20,42 +20,12 @@ export const Route = createFileRoute("/merchant/")({
 function MerchantDashboard() {
   const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
 
-  // Wait for permissions to load
-  if (permsLoading) {
-    return (
-      <MerchantLayout>
-        <div className="flex justify-center py-10">
-          <div className="animate-pulse text-muted-foreground">Loading dashboard...</div>
-        </div>
-      </MerchantLayout>
-    );
-  }
-
-  // No store ID
-  if (!storeId) {
-    return (
-      <MerchantLayout>
-        <div className="text-center py-10">
-          <p className="text-sm text-muted-foreground">No store associated with this account.</p>
-          <p className="text-xs text-muted-foreground mt-1">Please contact support or register a store.</p>
-        </div>
-      </MerchantLayout>
-    );
-  }
-
-  // Check permission
-  const canViewDashboard = permissions?.dashboard === "full" || permissions?.dashboard === "view";
-  if (!canViewDashboard) {
-    return (
-      <MerchantLayout>
-        <p className="text-sm text-muted-foreground">You don't have permission to view the dashboard.</p>
-      </MerchantLayout>
-    );
-  }
-
-  // Fetch stats
+  // All hooks must run unconditionally, on every render, in the same
+  // order — never place a hook call after an early `return`. We gate
+  // each query itself with `enabled` and gate what we *render* below.
   const stats = useQuery({
     queryKey: ["merchant-dashboard-stats", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -93,6 +63,7 @@ function MerchantDashboard() {
   // Fetch recent orders (limit 5)
   const recentOrders = useQuery({
     queryKey: ["merchant-recent-orders", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -105,6 +76,39 @@ function MerchantDashboard() {
     },
     retry: 1,
   });
+
+  // Wait for permissions to load
+  if (permsLoading) {
+    return (
+      <MerchantLayout>
+        <div className="flex justify-center py-10">
+          <div className="animate-pulse text-muted-foreground">Loading dashboard...</div>
+        </div>
+      </MerchantLayout>
+    );
+  }
+
+  // No store ID
+  if (!storeId) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <p className="text-sm text-muted-foreground">No store associated with this account.</p>
+          <p className="text-xs text-muted-foreground mt-1">Please contact support or register a store.</p>
+        </div>
+      </MerchantLayout>
+    );
+  }
+
+  // Check permission
+  const canViewDashboard = permissions?.dashboard === "full" || permissions?.dashboard === "view";
+  if (!canViewDashboard) {
+    return (
+      <MerchantLayout>
+        <p className="text-sm text-muted-foreground">You don't have permission to view the dashboard.</p>
+      </MerchantLayout>
+    );
+  }
 
   // Handle loading
   if (stats.isLoading || recentOrders.isLoading) {
