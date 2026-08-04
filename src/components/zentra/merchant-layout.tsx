@@ -5,10 +5,15 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantBottomNav } from "./merchant-bottom-nav";
 import { useSession } from "@/hooks/use-session";
+import { useRoleGuard } from "@/hooks/use-role-guard";
 import { cn } from "@/lib/utils";
 
 export function MerchantLayout({ children }: { children: ReactNode }) {
   const { user } = useSession();
+  const { ready } = useRoleGuard("merchant");
+  
+  // Don't render anything until role is confirmed
+  if (!ready) return null;
 
   // Fetch the merchant/store for this owner
   const store = useQuery({
