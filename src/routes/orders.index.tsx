@@ -37,6 +37,7 @@ function OrdersPage() {
       const { data, error } = await supabase
         .from("orders")
         .select("id,status,total_kobo,placed_at,merchants(business_name)")
+        .eq("customer_id", user!.id)
         .order("placed_at", { ascending: false });
       if (error) throw error;
       return data;
