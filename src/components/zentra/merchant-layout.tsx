@@ -138,7 +138,7 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
               {isOpen ? "Open" : "Closed"}
             </button>
             <Link
-              to="/account"
+              to="/merchant/profile"
               className="grid size-8 place-items-center rounded-full border border-border bg-secondary"
             >
               <span className="size-4 rounded-full bg-accent/30" />
