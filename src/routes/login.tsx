@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
+import { getSiteUrl } from "@/lib/site-url";
 import { roleHome } from "@/lib/roles";
 
 export const Route = createFileRoute("/login")({
@@ -22,10 +23,10 @@ export const Route = createFileRoute("/login")({
 });
 
 // Modes:
-// "signin"       – email + password
-// "signin-code"  – fallback: sign in via one-time email code, no password
-// "verify"       – enter the 6-digit code sent for the "signin-code" fallback
-type Mode = "signin" | "signin-code" | "verify";
+// "signin"       – email + password (the only way in)
+// "forgot"       – enter email, request a reset link
+// "forgot-sent"  – confirmation that the reset email is on its way
+type Mode = "signin" | "forgot" | "forgot-sent";
 
 // Right after a fresh sign-in, useSession's cached role hasn't updated yet,
 // so look the profile up directly to decide where this account belongs.
@@ -41,7 +42,6 @@ function LoginPage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,13 +51,7 @@ function LoginPage() {
     if (!loading && user && !roleLoading) navigate({ to: roleHome(role) });
   }, [loading, user, roleLoading, role, navigate]);
 
-  async function upsertProfile(u: { id: string; email?: string | null }) {
-    await supabase
-      .from("profiles")
-      .upsert({ id: u.id, email: u.email ?? null }, { onConflict: "id" });
-  }
-
-  // ── Returning user: email + password ──
+  // ── Sign in with email + password ──
   async function signIn(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -74,57 +68,33 @@ function LoginPage() {
     navigate({ to: await resolveHome(data.user?.id) });
   }
 
-  // ── Fallback: passwordless sign-in via emailed code (no password on file) ──
-  async function sendSignInCode(e: React.FormEvent) {
+  // ── Forgot password — reuses the same set-password page as the invite flow ──
+  async function sendResetLink(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: false },
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${getSiteUrl()}/auth/set-password`,
     });
     setBusy(false);
     if (err) {
       setError(err.message);
       return;
     }
-    setMode("verify");
-    toast.success("Code sent", { description: `Check ${email} for your 6-digit code.` });
-  }
-
-  async function verifySignInCode(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const { data, error: err } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: "email",
-    });
-    if (err) {
-      setBusy(false);
-      setError(err.message);
-      return;
-    }
-    if (data.user) {
-      await upsertProfile(data.user);
-    }
-    setBusy(false);
-    navigate({ to: await resolveHome(data.user?.id) });
+    setMode("forgot-sent");
+    toast.success("Reset link sent", { description: `Check ${email} for a link to set a new password.` });
   }
 
   // While we check for an existing session, or once redirecting, show nothing.
   if (loading || user) return null;
 
-  const heading =
-    mode === "signin" ? "Welcome back" : mode === "signin-code" ? "Sign in with a code" : "Enter your code";
-
+  const heading = mode === "signin" ? "Welcome back" : "Reset your password";
   const subheading =
     mode === "signin"
       ? "Sign in with your email and password."
-      : mode === "signin-code"
-      ? "We'll email you a 6-digit code, no password needed."
-      : `We sent a 6-digit code to ${email}.`;
+      : mode === "forgot"
+        ? "We'll email you a link to set a new password."
+        : `Check ${email} for a link to set a new password.`;
 
   return (
     <Screen nav={false}>
@@ -184,19 +154,19 @@ function LoginPage() {
                 type="button"
                 onClick={() => {
                   setError(null);
-                  setMode("signin-code");
+                  setMode("forgot");
                 }}
                 className="text-muted-foreground underline"
               >
-                Use email code instead
+                Forgot password?
               </button>
             </div>
           </form>
         )}
 
-        {/* ── Passwordless sign-in fallback ── */}
-        {mode === "signin-code" && (
-          <form onSubmit={sendSignInCode} className="space-y-4">
+        {/* ── Forgot password: request a reset link ── */}
+        {mode === "forgot" && (
+          <form onSubmit={sendResetLink} className="space-y-4">
             <label className="block">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Email address
@@ -217,7 +187,7 @@ function LoginPage() {
               disabled={busy}
               className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-60"
             >
-              {busy ? "Sending code..." : "Send my code"}
+              {busy ? "Sending..." : "Send reset link"}
             </button>
             <button
               type="button"
@@ -227,48 +197,20 @@ function LoginPage() {
               }}
               className="w-full py-2 text-sm font-semibold text-primary"
             >
-              Back to password sign in
+              Back to sign in
             </button>
           </form>
         )}
 
-        {/* ── Verify the passwordless sign-in code ── */}
-        {mode === "verify" && (
-          <form onSubmit={verifySignInCode} className="space-y-4">
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                6-digit code
-              </span>
-              <input
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="••••••"
-                className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 text-center font-display text-2xl font-extrabold tracking-[0.4em] outline-none ring-primary/20 focus:ring-2"
-              />
-            </label>
-            {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-60"
-            >
-              {busy ? "Checking..." : "Confirm & continue"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setCode("");
-                setMode("signin-code");
-              }}
-              className="w-full py-2 text-sm font-semibold text-primary"
-            >
-              Use a different email
-            </button>
-          </form>
+        {/* ── Reset link sent ── */}
+        {mode === "forgot-sent" && (
+          <button
+            type="button"
+            onClick={() => setMode("signin")}
+            className="w-full rounded-xl border border-border bg-card py-3.5 font-bold"
+          >
+            Back to sign in
+          </button>
         )}
       </div>
     </Screen>
