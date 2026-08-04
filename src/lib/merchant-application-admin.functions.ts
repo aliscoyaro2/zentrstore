@@ -19,7 +19,7 @@ async function assertIsAdmin(supabase: import("@supabase/supabase-js").SupabaseC
   }
 }
 
-const DOCUMENT_COLUMNS = ["cover_photo_url", "owner_id_doc_url", "cac_doc_url"] as const;
+const DOCUMENT_COLUMNS = ["cover_photo_url", "owner_id_doc_url"] as const;
 
 // Fallback used only if platform_settings has no row yet — should not
 // normally be hit since the row is a singleton seeded at project setup.
