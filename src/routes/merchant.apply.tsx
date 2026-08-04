@@ -1,153 +1,150 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import {
+  Store,
+  TrendingUp,
+  Wallet,
+  Smartphone,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
-import { useSession } from "@/hooks/use-session";
-import { CATEGORIES, type MerchantCategory } from "@/lib/categories";
 
 export const Route = createFileRoute("/merchant/apply")({
   head: () => ({
     meta: [
-      { title: "Register your store on Zentra" },
+      { title: "Sell on Zentra Maiduguri" },
       {
         name: "description",
         content:
-          "Restaurants, home kitchens, pharmacies, water and gas sellers — join Zentra Maiduguri and take orders online.",
+          "Restaurants, home kitchens, pharmacies, supermarkets and more — bring your business online with Zentra Maiduguri.",
       },
-      { property: "og:title", content: "Sell on Zentra Maiduguri" },
-      {
-        property: "og:description",
-        content: "Tell us about your store and we'll review your application within a day.",
-      },
+      { property: "og:title", content: "Sell on Zentra" },
+      { property: "og:description", content: "Replace your WhatsApp Status storefront with a real digital one." },
     ],
   }),
-  component: MerchantApply,
+  component: MerchantLanding,
 });
 
-function MerchantApply() {
-  const { user, loading } = useSession();
-  const navigate = useNavigate();
-  const [businessName, setBusinessName] = useState("");
-  const [category, setCategory] = useState<MerchantCategory>("home_kitchen");
-  const [address, setAddress] = useState("");
-  const [busy, setBusy] = useState(false);
+const BENEFITS = [
+  { icon: Smartphone, title: "Digital storefront", body: "Customers browse and order from you directly — no more manual WhatsApp messages." },
+  { icon: TrendingUp, title: "Reach more customers", body: "Get discovered by nearby customers searching your category." },
+  { icon: Wallet, title: "Tracked settlements", body: "Every sale is recorded, with clear, scheduled payouts to your bank account." },
+  { icon: Store, title: "Any size business", body: "From a home kitchen to a supermarket — every store is welcome." },
+];
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [loading, user, navigate]);
+const FAQS: Array<{ q: string; a: string }> = [
+  {
+    q: "Do I need to create an account first?",
+    a: "No. You apply directly — no separate signup. We'll only create your merchant account once your application is approved.",
+  },
+  {
+    q: "What do I need to apply?",
+    a: "Your business details, a bank account for settlement, your usual opening hours, and a valid means of ID for the business owner.",
+  },
+  {
+    q: "How long does approval take?",
+    a: "We review every application by hand, usually within a few days. You'll get an email once a decision is made.",
+  },
+  {
+    q: "Can a home kitchen or WhatsApp-Status seller apply?",
+    a: "Yes — home kitchens and local vendors are a distinct, welcome category on Zentra, with a lower commission tier.",
+  },
+  {
+    q: "How much commission does Zentra take?",
+    a: "Commission varies by category, and is confirmed during your application before you sign the agreement.",
+  },
+  {
+    q: "How do I get paid?",
+    a: "Sales are settled to the bank account you provide during your application, on a scheduled settlement cycle.",
+  },
+];
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    setBusy(true);
-    const { error } = await supabase.from("merchants").insert({
-      owner_id: user.id,
-      business_name: businessName.trim(),
-      category,
-      address_text: address.trim() || null,
-      lat: 11.8311,
-      lng: 13.151,
-      commission_pct: 10,
-    });
-    setBusy(false);
-    if (error) {
-      toast.error("Could not submit", { description: error.message });
-      return;
-    }
-    toast.success("Application received", {
-      description: "We'll review your store and get in touch.",
-    });
-    navigate({ to: "/merchant" });
-  }
-
+function MerchantLanding() {
   return (
-    <Screen>
-      <PageHeader title="Sell on Zentra" subtitle="Store application" back="/" />
-
-      <div className="space-y-5 px-4 py-6">
+    <Screen nav={false}>
+      <PageHeader title="Sell on Zentra" back="/" />
+      <div className="space-y-6 px-4 py-6">
         <div>
           <p className="font-display text-2xl font-extrabold leading-tight">
-            Bring your store to your neighbourhood.
+            Bring your business online.
           </p>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Whether you cook from home for WhatsApp customers or run a shop at Monday Market, you sell
-            the same way on Zentra. No professional photos needed.
+            Join the restaurants, home kitchens, pharmacies and shops already selling on Zentra —
+            a real storefront, online payments, and organized orders.
           </p>
         </div>
 
         <Panel className="p-4">
-          <ol className="space-y-3 text-sm">
-            <Step n={1} text="Tell us about your business" />
-            <Step n={2} text="We verify and approve — usually within a day" />
-            <Step n={3} text="Add your products and start taking paid orders" />
-          </ol>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">Why sell on Zentra</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {BENEFITS.map(({ icon: Icon, title, body }) => (
+              <div key={title} className="rounded-xl border border-border bg-secondary/40 p-3">
+                <Icon className="size-5 text-primary" />
+                <p className="mt-2 text-sm font-bold leading-tight">{title}</p>
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">{body}</p>
+              </div>
+            ))}
+          </div>
         </Panel>
 
-        <form onSubmit={submit} className="space-y-4">
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Business name
-            </span>
-            <input
-              required
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              placeholder="e.g. Aisha Home Bakes"
-              className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 text-base outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </label>
+        <Panel className="p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">What you'll need</p>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            <li>• Business name, category, and description</li>
+            <li>• Business address and opening hours</li>
+            <li>• A bank account for settlement</li>
+            <li>• A valid means of ID for the business owner</li>
+            <li>• A photo of your store or products (optional but recommended)</li>
+          </ul>
+        </Panel>
 
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Category
-            </span>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as MerchantCategory)}
-              className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 text-base outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
+        <FaqSection />
 
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Where you trade from
-            </span>
-            <textarea
-              rows={2}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="e.g. Polo Area, GRA Phase 1"
-              className="mt-2 w-full rounded-xl border border-border bg-card px-4 py-3 text-base outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-60"
-          >
-            {busy ? "Submitting..." : "Submit application"}
-          </button>
-        </form>
+        <Link
+          to="/merchant/apply/form"
+          className="block w-full rounded-xl bg-primary py-3.5 text-center font-bold text-primary-foreground"
+        >
+          Start your application
+        </Link>
+        <p className="text-center text-xs text-muted-foreground">
+          Takes about 10 minutes. No account needed — you'll verify your email as you go.
+        </p>
       </div>
     </Screen>
   );
 }
 
-function Step({ n, text }: { n: number; text: string }) {
+function FaqSection() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   return (
-    <li className="flex items-center gap-3">
-      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 font-display text-xs font-extrabold text-primary">
-        {n}
-      </span>
-      <span>{text}</span>
-    </li>
+    <Panel className="divide-y divide-border">
+      <div className="p-4 pb-2">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
+          <Store className="mr-1.5 inline size-3.5 -translate-y-px" />
+          Frequently asked questions
+        </p>
+      </div>
+      {FAQS.map((item, idx) => {
+        const open = openIndex === idx;
+        return (
+          <div key={item.q} className="px-4">
+            <button
+              type="button"
+              onClick={() => setOpenIndex(open ? null : idx)}
+              className="flex w-full items-center justify-between gap-3 py-3 text-left"
+            >
+              <span className="text-sm font-semibold">{item.q}</span>
+              {open ? (
+                <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+              )}
+            </button>
+            {open ? <p className="pb-3 text-sm leading-relaxed text-muted-foreground">{item.a}</p> : null}
+          </div>
+        );
+      })}
+    </Panel>
   );
 }
