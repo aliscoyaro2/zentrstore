@@ -63,7 +63,7 @@ const FAQS: Array<{ q: string; a: string }> = [
 function MerchantLanding() {
   return (
     <Screen nav={false}>
-      <PageHeader title="Sell on Zentra" back="/" />
+      <PageHeader title="Sell on Zentra" back="/partners" />
       <div className="space-y-6 px-4 py-6">
         <div>
           <p className="font-display text-2xl font-extrabold leading-tight">
