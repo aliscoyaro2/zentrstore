@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getSiteUrl } from "@/lib/site-url";
 
 /**
  * Admin-only server functions for reviewing rider applications. Every
@@ -104,9 +105,11 @@ export const approveRiderApplication = createServerFn({ method: "POST" })
 
     // Create the real account now — this is the moment the applicant
     // becomes a rider. Supabase's invite email (through the project's
-    // Brevo SMTP) lets them set their own password on first login.
+    // Brevo SMTP) links to /auth/set-password, where they choose their own
+    // password before ever landing on the dashboard.
     const { data: invited, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(app.email, {
       data: { full_name: app.full_name, role: "rider" },
+      redirectTo: `${getSiteUrl()}/auth/set-password`,
     });
 
     if (inviteError || !invited.user) {
@@ -150,7 +153,7 @@ export const approveRiderApplication = createServerFn({ method: "POST" })
       agreement_accepted_at: app.agreement_accepted_at,
       agreement_signature_name: app.agreement_signature_name,
       application_id: app.id,
-    } as never);
+    });
     if (riderError) throw new Error(riderError.message);
 
     const { error: updateError } = await supabaseAdmin
