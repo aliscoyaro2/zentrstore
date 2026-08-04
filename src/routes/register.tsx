@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
-import { roleHome, type UserRole } from "@/lib/roles";
+import { roleHome } from "@/lib/roles";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/register")({
       { title: "Create your Zentra account" },
       {
         name: "description",
-        content: "Sign up with email and password to order, sell, or ride on Zentra Maiduguri.",
+        content: "Sign up with email and password to browse and order from local Maiduguri stores.",
       },
       { property: "og:title", content: "Create your Zentra account" },
       { property: "og:description", content: "Join Zentra Maiduguri." },
@@ -21,21 +21,14 @@ export const Route = createFileRoute("/register")({
   component: RegisterPage,
 });
 
-// "signup" – choose account type, enter email + password, triggers a one-time confirmation code
+// "signup" – enter email + password, triggers a one-time confirmation code
 // "verify" – enter that code to confirm the new account
 type Mode = "signup" | "verify";
-
-const SIGNUP_ROLES: { value: UserRole; label: string; hint: string }[] = [
-  { value: "customer", label: "Order stuff", hint: "Browse and order from local stores" },
-  { value: "merchant", label: "Sell on Zentra", hint: "Run a restaurant, kitchen, shop or pharmacy" },
-  { value: "rider", label: "Ride & deliver", hint: "Deliver orders on your own motorcycle" },
-];
 
 function RegisterPage() {
   const navigate = useNavigate();
   const { user, loading, role, roleLoading } = useSession();
   const [mode, setMode] = useState<Mode>("signup");
-  const [accountRole, setAccountRole] = useState<UserRole>("customer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -47,10 +40,13 @@ function RegisterPage() {
     if (!loading && user && !roleLoading) navigate({ to: roleHome(role) });
   }, [loading, user, roleLoading, role, navigate]);
 
+  // Every account created here is a plain customer. Merchant and rider
+  // accounts are never created directly — they only ever come into being
+  // when an application (/merchant/apply or /rider/apply) is approved by
+  // an admin, at which point the account is created for them and they set
+  // their password via an invite email. See merchant-application-admin.functions.ts.
   async function upsertProfile(u: { id: string; email?: string | null }) {
-    await supabase
-      .from("profiles")
-      .upsert({ id: u.id, email: u.email ?? null, role: accountRole }, { onConflict: "id" });
+    await supabase.from("profiles").upsert({ id: u.id, email: u.email ?? null, role: "customer" }, { onConflict: "id" });
   }
 
   // ── New user: create account with password, triggers email verification code ──
@@ -98,13 +94,7 @@ function RegisterPage() {
       await upsertProfile(data.user);
     }
     setBusy(false);
-    if (accountRole === "merchant") {
-      navigate({ to: "/merchant/apply" });
-    } else if (accountRole === "rider") {
-      navigate({ to: "/rider/apply" });
-    } else {
-      navigate({ to: "/" });
-    }
+    navigate({ to: "/" });
   }
 
   // While we check for an existing session, or once redirecting, show nothing.
@@ -130,47 +120,6 @@ function RegisterPage() {
         {/* ── Create account with password ── */}
         {mode === "signup" && (
           <form onSubmit={signUp} className="space-y-4">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                I want to...
-              </span>
-              <div className="mt-2 space-y-2">
-                {SIGNUP_ROLES.map((r) => (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => setAccountRole(r.value)}
-                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
-                      accountRole === r.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-card"
-                    }`}
-                  >
-                    <span>
-                      <span className="block text-sm font-bold">{r.label}</span>
-                      <span className="block text-xs text-muted-foreground">{r.hint}</span>
-                    </span>
-                    <span
-                      className={`grid size-5 shrink-0 place-items-center rounded-full border-2 ${
-                        accountRole === r.value ? "border-primary" : "border-border"
-                      }`}
-                    >
-                      {accountRole === r.value ? (
-                        <span className="size-2.5 rounded-full bg-primary" />
-                      ) : null}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {accountRole !== "customer" ? (
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                  {accountRole === "merchant"
-                    ? "After this, you'll register your store and we'll review it within a day."
-                    : "After this, you'll add your motorcycle details and we'll verify you."}
-                </p>
-              ) : null}
-            </div>
-
             <label className="block">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Email address
@@ -212,6 +161,12 @@ function RegisterPage() {
               Already have an account?{" "}
               <Link to="/login" className="font-semibold text-primary">
                 Sign in
+              </Link>
+            </p>
+            <p className="text-center text-sm text-muted-foreground">
+              Want to sell or ride with Zentra instead?{" "}
+              <Link to="/partners" className="font-semibold text-primary">
+                Apply here
               </Link>
             </p>
           </form>
