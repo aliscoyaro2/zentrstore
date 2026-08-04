@@ -21,12 +21,12 @@ function MerchantProfilePage() {
   const { user } = useSession();
   const { storeId, role, permissions, isLoading: permsLoading } = useMerchantPermissions();
 
-  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
-  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
-
-  // Fetch merchant stats
+  // All hooks must run unconditionally, on every render, in the same
+  // order — never place a hook call after an early `return`. We gate
+  // the query itself with `enabled` and gate what we *render* below.
   const stats = useQuery({
     queryKey: ["merchant-profile-stats", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const [orders, reviews, store] = await Promise.all([
         supabase
@@ -57,6 +57,9 @@ function MerchantProfilePage() {
       };
     },
   });
+
+  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
+  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
 
   const data = stats.data;
 
