@@ -27,16 +27,12 @@ function MerchantProductsPage() {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
 
-  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
-  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
-
-  const canManageProducts = permissions?.products === "full";
-  if (!canManageProducts) {
-    return <MerchantLayout><p>You don't have permission to manage products.</p></MerchantLayout>;
-  }
-
+  // All hooks must run unconditionally, on every render, in the same
+  // order — never place a hook call after an early `return`. We gate
+  // the query itself with `enabled` and gate what we *render* below.
   const products = useQuery({
     queryKey: ["merchant-products", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
@@ -47,6 +43,14 @@ function MerchantProductsPage() {
       return data;
     },
   });
+
+  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
+  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
+
+  const canManageProducts = permissions?.products === "full";
+  if (!canManageProducts) {
+    return <MerchantLayout><p>You don't have permission to manage products.</p></MerchantLayout>;
+  }
 
   async function addProduct(e: React.FormEvent) {
     e.preventDefault();
