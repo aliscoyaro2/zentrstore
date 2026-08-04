@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getSiteUrl } from "@/lib/site-url";
 
 /**
  * Admin-only server functions for reviewing merchant applications. Every
@@ -19,7 +20,7 @@ async function assertIsAdmin(supabase: import("@supabase/supabase-js").SupabaseC
   }
 }
 
-const DOCUMENT_COLUMNS = ["cover_photo_url", "owner_id_doc_url"] as const;
+const DOCUMENT_COLUMNS = ["cover_photo_url", "owner_id_doc_url", "cac_doc_url"] as const;
 
 // Fallback used only if platform_settings has no row yet — should not
 // normally be hit since the row is a singleton seeded at project setup.
@@ -112,9 +113,11 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
 
     // Create the real account now — this is the moment the applicant
     // becomes a merchant. Supabase's invite email (through the project's
-    // Brevo SMTP) lets them set their own password on first login.
+    // Brevo SMTP) links to /auth/set-password, where they choose their own
+    // password before ever landing on the dashboard.
     const { data: invited, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(app.email, {
       data: { full_name: app.business_name, role: "merchant" },
+      redirectTo: `${getSiteUrl()}/auth/set-password`,
     });
 
     if (inviteError || !invited.user) {
@@ -128,10 +131,6 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
       .update({ role: "merchant", full_name: app.business_name, phone: app.phone, email: app.email })
       .eq("id", ownerId);
     if (profileError) throw new Error(profileError.message);
-
-    if (!app.business_name || !app.category) {
-      throw new Error("This application is missing a business name or category.");
-    }
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
@@ -154,6 +153,7 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
         self_delivery: app.self_delivery ?? false,
         pos_available: app.pos_available ?? false,
         cover_photo_url: app.cover_photo_url,
+        cac_doc_url: app.cac_doc_url,
         bank_name: app.bank_name,
         bank_account_number: app.account_number,
         bank_account_name: app.account_name,
