@@ -45,9 +45,10 @@ function CheckoutPage() {
   const [newLabel, setNewLabel] = useState("");
   const [newText, setNewText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [orderCreated, setOrderCreated] = useState(false);
   const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
+  const [isResumingPayment, setIsResumingPayment] = useState(false);
   const isSubmitting = useRef(false);
+  const paymentInitiated = useRef(false);
 
   const cartSessionId = getCartSessionId();
 
@@ -86,21 +87,30 @@ function CheckoutPage() {
     },
   });
 
-  // If there's an existing order in progress, prevent creating a new one
+  // If there's an existing order, handle it
   useEffect(() => {
-    if (existingOrder.data) {
-      setExistingOrderId(existingOrder.data.id);
-      setOrderCreated(true);
-      // If the order is already paid, redirect to tracking
-      if (existingOrder.data.status === "paid" || existingOrder.data.status === "merchant_pending") {
-        toast.info("You already have an order in progress", {
-          description: "Redirecting to order tracking...",
-        });
-        // Navigate to order tracking
-        window.location.href = `/customer/orders/${existingOrder.data.id}`;
-      }
+    if (!existingOrder.data || existingOrder.isLoading) return;
+
+    const order = existingOrder.data;
+
+    // If order is already paid or merchant_pending, redirect to tracking
+    if (order.status === "paid" || order.status === "merchant_pending") {
+      toast.info("You already have an order in progress", {
+        description: "Redirecting to order tracking...",
+      });
+      window.location.href = `/customer/orders/${order.id}`;
+      return;
     }
-  }, [existingOrder.data]);
+
+    // If order is created or payment_pending, resume payment
+    if (order.status === "created" || order.status === "payment_pending") {
+      setExistingOrderId(order.id);
+      setIsResumingPayment(true);
+      toast.info("Resuming your pending order...", {
+        description: "Click continue to complete payment.",
+      });
+    }
+  }, [existingOrder.data, existingOrder.isLoading]);
 
   useEffect(() => {
     const first = addresses.data?.[0];
@@ -135,105 +145,124 @@ function CheckoutPage() {
 
   async function placeOrder() {
     // Prevent multiple submissions
-    if (isSubmitting.current) return;
+    if (isSubmitting.current || paymentInitiated.current) return;
     if (!user || !cart.merchantId || !addressId) return;
-    
-    // Check if an order already exists for this session
-    if (existingOrder.data) {
-      toast.info("An order is already being processed for this cart", {
-        description: "Please wait or check your orders.",
-      });
-      return;
-    }
 
     isSubmitting.current = true;
     setBusy(true);
 
-    const reference = `ZEN-${Date.now().toString(36).toUpperCase()}`;
-
     try {
-      // 1. Create the order with initial status
-      const { data: order, error } = await supabase
-        .from("orders")
-        .insert({
-          customer_id: user.id,
-          merchant_id: cart.merchantId,
-          delivery_address_id: addressId,
-          subtotal_kobo: subtotal,
-          delivery_fee_kobo: DELIVERY_FEE_KOBO,
-          service_fee_kobo: service,
-          total_kobo: total,
-          payment_reference: reference,
-          cart_session_id: cartSessionId,
-          status: "created",
-          financial_status: "payment_authorized",
-          merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
+      let orderId: string;
+      let orderStatus: string;
 
-      if (error || !order) {
-        toast.error("Could not place order", { description: error?.message });
-        isSubmitting.current = false;
-        setBusy(false);
-        return;
-      }
+      // If we have an existing order in created/payment_pending state, use it
+      if (existingOrderId && (existingOrder.data?.status === "created" || existingOrder.data?.status === "payment_pending")) {
+        orderId = existingOrderId;
+        orderStatus = existingOrder.data.status;
 
-      setOrderCreated(true);
-      setExistingOrderId(order.id);
+        // If order is still "created", update to payment_pending
+        if (orderStatus === "created") {
+          await supabase
+            .from("orders")
+            .update({ status: "payment_pending" })
+            .eq("id", orderId);
+        }
 
-      // 2. Log OrderCreated event
-      try {
-        await logOrderEvent({
-          data: {
-            orderId: order.id,
-            eventType: "OrderCreated",
-            eventData: {
-              customer_id: user.id,
-              merchant_id: cart.merchantId,
-              total_kobo: total,
-              item_count: cart.lines.length,
-              cart_session_id: cartSessionId,
+        toast.info("Resuming existing order...");
+      } else {
+        // Create new order
+        const reference = `ZEN-${Date.now().toString(36).toUpperCase()}`;
+
+        const { data: order, error } = await supabase
+          .from("orders")
+          .insert({
+            customer_id: user.id,
+            merchant_id: cart.merchantId,
+            delivery_address_id: addressId,
+            subtotal_kobo: subtotal,
+            delivery_fee_kobo: DELIVERY_FEE_KOBO,
+            service_fee_kobo: service,
+            total_kobo: total,
+            payment_reference: reference,
+            cart_session_id: cartSessionId,
+            status: "created",
+            financial_status: "payment_authorized",
+            merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (error || !order) {
+          toast.error("Could not place order", { description: error?.message });
+          isSubmitting.current = false;
+          setBusy(false);
+          return;
+        }
+
+        orderId = order.id;
+        setExistingOrderId(orderId);
+
+        // Log OrderCreated event
+        try {
+          await logOrderEvent({
+            data: {
+              orderId: order.id,
+              eventType: "OrderCreated",
+              eventData: {
+                customer_id: user.id,
+                merchant_id: cart.merchantId,
+                total_kobo: total,
+                item_count: cart.lines.length,
+                cart_session_id: cartSessionId,
+              },
+              actorType: "customer",
+              actorId: user.id,
             },
-            actorType: "customer",
-            actorId: user.id,
-          },
-        });
-      } catch (eventErr) {
-        console.warn("Failed to log OrderCreated event:", eventErr);
+          });
+        } catch (eventErr) {
+          console.warn("Failed to log OrderCreated event:", eventErr);
+        }
+
+        // Save order items
+        const { error: itemsError } = await supabase.from("order_items").insert(
+          cart.lines.map((l) => ({
+            order_id: order.id,
+            product_id: l.productId,
+            quantity: l.quantity,
+            unit_price_kobo: l.priceKobo,
+          }))
+        );
+
+        if (itemsError) {
+          toast.error("Could not save your items", { description: itemsError.message });
+          isSubmitting.current = false;
+          setBusy(false);
+          return;
+        }
+
+        // Update order status to payment_pending
+        await supabase
+          .from("orders")
+          .update({ status: "payment_pending" })
+          .eq("id", order.id);
+
+        setIsResumingPayment(false);
       }
 
-      // 3. Save order items
-      const { error: itemsError } = await supabase.from("order_items").insert(
-        cart.lines.map((l) => ({
-          order_id: order.id,
-          product_id: l.productId,
-          quantity: l.quantity,
-          unit_price_kobo: l.priceKobo,
-        }))
-      );
+      // --- PAYMENT FLOW ---
+      paymentInitiated.current = true;
 
-      if (itemsError) {
-        toast.error("Could not save your items", { description: itemsError.message });
-        isSubmitting.current = false;
-        setBusy(false);
-        return;
-      }
-
-      // 4. Update order status to payment_pending
-      await supabase
-        .from("orders")
-        .update({ status: "payment_pending" })
-        .eq("id", order.id);
-
-      // 5. Payment flow
       try {
-        const { authorizationUrl } = await initPaystackPayment({ data: { orderId: order.id } });
+        const { authorizationUrl } = await initPaystackPayment({ data: { orderId } });
+
+        // Clear cart only after successful payment initiation
         clear();
-        // Clear the cart session so a new order can be created later
         sessionStorage.removeItem("zentra_cart_session");
+
+        // Redirect to Paystack
         window.location.href = authorizationUrl;
       } catch (payErr) {
+        paymentInitiated.current = false;
         toast.error("Could not start payment", {
           description: payErr instanceof Error ? payErr.message : "Please try again.",
         });
@@ -264,6 +293,8 @@ function CheckoutPage() {
   }
 
   if (!ready) return null;
+
+  const isOrderAlreadyPaid = existingOrder.data?.status === "paid" || existingOrder.data?.status === "merchant_pending";
 
   return (
     <Screen>
@@ -328,29 +359,42 @@ function CheckoutPage() {
 
         <PaystackNote />
 
-        {existingOrderId ? (
-          <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
-            <p className="font-bold">Order in progress</p>
-            <p className="mt-1">You already have an order being processed. Please check your orders page.</p>
+        {isOrderAlreadyPaid ? (
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            <p className="font-bold">✅ Order already paid</p>
+            <p className="mt-1">This order has already been paid for.</p>
             <Link
               to="/customer/orders/$orderId"
-              params={{ orderId: existingOrderId }}
-              className="mt-2 inline-block font-semibold text-primary underline"
+              params={{ orderId: existingOrder.data.id }}
+              className="mt-2 inline-block font-semibold text-green-700 underline"
             >
               View your order
             </Link>
+          </div>
+        ) : existingOrderId && (existingOrder.data?.status === "created" || existingOrder.data?.status === "payment_pending") ? (
+          <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
+            <p className="font-bold">🔄 Resuming existing order</p>
+            <p className="mt-1">You have a pending order from this cart. Complete payment to finalize.</p>
+            <button
+              type="button"
+              onClick={placeOrder}
+              disabled={busy}
+              className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {busy ? "Processing..." : `Resume payment · ${naira(total)}`}
+            </button>
           </div>
         ) : (
           <button
             type="button"
             onClick={placeOrder}
-            disabled={busy || !addressId || orderCreated}
+            disabled={busy || !addressId}
             className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50"
           >
             {busy ? "Processing..." : `Continue to payment · ${naira(total)}`}
           </button>
         )}
-        {!addressId && !existingOrderId && (
+        {!addressId && !existingOrderId && !isOrderAlreadyPaid && (
           <p className="text-center text-xs text-muted-foreground">
             Add a delivery address to continue.
           </p>
