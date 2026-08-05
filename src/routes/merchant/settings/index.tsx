@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
+import { MerchantLocationPicker } from "@/components/zentra/map/merchant-location-picker";
+import type { PickedLocation } from "@/components/zentra/map/location-picker";
 
 export const Route = createFileRoute("/merchant/settings/")({
   head: () => ({
@@ -22,12 +24,12 @@ function MerchantSettingsPage() {
   const [form, setForm] = useState({
     business_name: "",
     phone: "",
-    address_text: "",
     delivery_radius_km: 5,
     opening_time: "",
     closing_time: "",
     is_open_override: false,
   });
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [saving, setSaving] = useState(false);
 
   // All hooks must run unconditionally, on every render, in the same
@@ -39,7 +41,7 @@ function MerchantSettingsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchants")
-        .select("business_name, phone, address_text, delivery_radius_km, opening_time, closing_time, is_open_override")
+        .select("business_name, phone, address_text, lat, lng, delivery_radius_km, opening_time, closing_time, is_open_override")
         .eq("id", storeId!)
         .maybeSingle();
       if (error) throw error;
@@ -52,12 +54,16 @@ function MerchantSettingsPage() {
       setForm({
         business_name: settings.data.business_name || "",
         phone: settings.data.phone || "",
-        address_text: settings.data.address_text || "",
         delivery_radius_km: settings.data.delivery_radius_km ?? 5,
         opening_time: settings.data.opening_time || "",
         closing_time: settings.data.closing_time || "",
         is_open_override: settings.data.is_open_override ?? false,
       });
+      setPickedLocation(
+        settings.data.lat && settings.data.lng
+          ? { lat: settings.data.lat, lng: settings.data.lng, formatted: settings.data.address_text || "" }
+          : null
+      );
     }
   }, [settings.data]);
 
@@ -83,13 +89,19 @@ function MerchantSettingsPage() {
       toast.error("You don't have permission to edit settings.");
       return;
     }
+    if (!pickedLocation) {
+      toast.error("Please search or tap the map to set your store's location.");
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("merchants")
       .update({
         business_name: form.business_name.trim(),
         phone: form.phone.trim() || null,
-        address_text: form.address_text.trim() || null,
+        address_text: pickedLocation.formatted,
+        lat: pickedLocation.lat,
+        lng: pickedLocation.lng,
         delivery_radius_km: form.delivery_radius_km,
         opening_time: form.opening_time || null,
         closing_time: form.closing_time || null,
@@ -131,13 +143,15 @@ function MerchantSettingsPage() {
           />
         </div>
         <div>
-          <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Address</label>
-          <input
-            className={inputClass}
-            value={form.address_text}
-            onChange={e => setForm({ ...form, address_text: e.target.value })}
-            disabled={!canEditSettings}
-          />
+          <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Store location</label>
+          {!pickedLocation && (
+            <p className="mt-1 text-xs text-yellow-600">
+              ⚠️ Location not set — customers and riders need this to find your store.
+            </p>
+          )}
+          <div className="mt-1">
+            <MerchantLocationPicker value={pickedLocation} onChange={setPickedLocation} />
+          </div>
         </div>
         <div>
           <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delivery radius (km)</label>
@@ -186,7 +200,7 @@ function MerchantSettingsPage() {
         {canEditSettings ? (
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || !pickedLocation}
             className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
           >
             {saving ? "Saving..." : "Save changes"}
