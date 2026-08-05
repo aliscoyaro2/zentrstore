@@ -274,19 +274,19 @@ function SettingsPage() {
           Explore
         </Link>
         <Link
-          to="/orders"
+          to="/customer/orders"
           className="text-center text-sm text-muted-foreground hover:text-primary transition"
         >
           Orders
         </Link>
         <Link
-          to="/cart"
+          to="/customer/cart"
           className="text-center text-sm text-muted-foreground hover:text-primary transition"
         >
           Cart
         </Link>
         <Link
-          to="/account"
+          to="/customer/account"
           className="text-center text-sm text-primary font-medium"
         >
           Profile
