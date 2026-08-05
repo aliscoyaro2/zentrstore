@@ -103,13 +103,13 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
         }
 
         // Idempotency: if already paid, don't double-process
-        if (order.status !== "placed" && order.status !== "created" && order.status !== "payment_pending") {
+        if (order.status !== "created" && order.status !== "payment_pending" && order.status !== "paid" && order.status !== "placed") {
           return new Response("ok", { status: 200 });
         }
 
         const paidAt = new Date().toISOString();
 
-        // Update order status to "paid" (this will trigger merchant_pending via trigger)
+        // Update order status to "paid" 
         const { error: updateError } = await supabaseAdmin
           .from("orders")
           .update({ 
@@ -163,16 +163,18 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
           console.warn("[paystack-webhook] Failed to log PaymentSucceeded event:", eventErr);
         }
 
-        // Update merchant_response_deadline to give merchant 60 seconds from now
+        // ⭐ AUTO-ADVANCE TO MERCHANT_PENDING
         try {
           await supabaseAdmin
             .from("orders")
             .update({ 
-              merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString() 
+              status: "merchant_pending",
+              merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString()
             })
-            .eq("id", order.id);
-        } catch (deadlineErr) {
-          console.warn("[paystack-webhook] Failed to set merchant deadline:", deadlineErr);
+            .eq("id", order.id)
+            .eq("status", "paid");
+        } catch (advanceErr) {
+          console.warn("[paystack-webhook] Failed to advance to merchant_pending:", advanceErr);
         }
 
         return new Response("ok", { status: 200 });
