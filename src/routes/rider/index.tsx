@@ -17,7 +17,6 @@ import {
   Home,
   ShoppingBag,
   User,
-  Map,
   Navigation2,
   Check,
   Circle
@@ -30,6 +29,7 @@ import { useRoleGuard } from "@/hooks/use-role-guard";
 import { useRiderLocationTracking } from "@/hooks/use-rider-location";
 import { naira } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { OrderRouteMap } from "@/components/zentra/map/order-route-map";
 
 export const Route = createFileRoute("/rider/")({
   head: () => ({
@@ -320,6 +320,11 @@ function RiderDashboard() {
         ) : currentJob ? (
           <CurrentJobCard 
             job={currentJob} 
+            riderLocation={
+              rider.data?.current_lat != null && rider.data?.current_lng != null
+                ? { lat: rider.data.current_lat, lng: rider.data.current_lng }
+                : null
+            }
             onAdvance={async (orderId, status) => {
               await advanceOrder(orderId, status);
             }}
@@ -655,9 +660,11 @@ function IncomingJobCard({
 
 function CurrentJobCard({
   job,
+  riderLocation,
   onAdvance,
 }: {
   job: any;
+  riderLocation?: { lat: number; lng: number } | null;
   onAdvance: (orderId: string, status: string) => void;
 }) {
   const currentStep = STATUS_TO_STEP[job.status] || "assigned";
@@ -750,6 +757,30 @@ function CurrentJobCard({
             </a>
           )}
         </div>
+
+        {/* Map toggle + map */}
+        {job.merchants?.lat != null && job.merchants?.lng != null && job.addresses?.lat != null && job.addresses?.lng != null && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowMap((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-primary"
+            >
+              <MapPin className="size-3.5" />
+              {showMap ? "Hide map" : "Show map"}
+            </button>
+            {showMap && (
+              <div className="mt-2">
+                <OrderRouteMap
+                  merchant={{ lat: job.merchants.lat, lng: job.merchants.lng, label: job.merchants.business_name }}
+                  customer={{ lat: job.addresses.lat, lng: job.addresses.lng, label: "Drop-off" }}
+                  rider={riderLocation}
+                  className="h-56 w-full"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Action Button */}
         {!isDelivered ? (
