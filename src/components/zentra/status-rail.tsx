@@ -1,14 +1,22 @@
 export const ORDER_FLOW = [
-  "placed",
+  "created",
+  "payment_pending",
   "paid",
+  "merchant_pending",
   "merchant_accepted",
   "preparing",
+  "rider_offered",
   "rider_assigned",
+  "rider_en_route_to_merchant",
+  "ready_for_pickup",
   "picked_up",
+  "en_route_to_customer",
   "delivered",
+  "completed",
 ] as const;
 
 export const STATUS_COPY: Record<string, { label: string; hint: string }> = {
+  // Existing statuses
   placed: { label: "Order placed", hint: "Waiting for your payment" },
   paid: { label: "Payment received", hint: "Sent to the merchant" },
   merchant_accepted: { label: "Merchant accepted", hint: "Your order was confirmed" },
@@ -20,6 +28,18 @@ export const STATUS_COPY: Record<string, { label: string; hint: string }> = {
   delivered: { label: "Delivered", hint: "Enjoy" },
   cancelled: { label: "Cancelled", hint: "This order was cancelled" },
   refunded: { label: "Refunded", hint: "Your payment was returned" },
+  
+  // NEW STATUSES
+  created: { label: "Order created", hint: "Processing your order" },
+  payment_pending: { label: "Awaiting payment", hint: "Waiting for payment confirmation" },
+  merchant_pending: { label: "Awaiting merchant", hint: "Waiting for merchant to accept" },
+  merchant_rejected: { label: "Rejected by merchant", hint: "Merchant couldn't fulfill this order" },
+  dispatch_scheduled: { label: "Dispatch scheduled", hint: "Finding the best rider" },
+  dispatching: { label: "Looking for rider", hint: "Riders are being notified" },
+  rider_offered: { label: "Offered to rider", hint: "Waiting for rider to accept" },
+  ready_for_pickup: { label: "Ready for pickup", hint: "Food is ready for collection" },
+  en_route_to_customer: { label: "On the way to you", hint: "Rider is delivering" },
+  completed: { label: "Completed", hint: "Order is complete" },
 };
 
 export function statusLabel(status: string) {
@@ -34,6 +54,23 @@ export function StatusRail({ status }: { status: string }) {
         ? "picked_up"
         : status;
   const activeIndex = ORDER_FLOW.indexOf(normalised as (typeof ORDER_FLOW)[number]);
+
+  // If status not found in flow, just show it as text
+  if (activeIndex === -1) {
+    return (
+      <ol className="relative flex flex-col gap-6 pl-8">
+        <li className="relative">
+          <span className="absolute -left-[29px] top-1 size-3.5 rounded-full ring-4 ring-background bg-primary" />
+          <p className="text-sm font-semibold leading-none text-primary">
+            {STATUS_COPY[status]?.label ?? status.replaceAll("_", " ")}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {STATUS_COPY[status]?.hint ?? ""}
+          </p>
+        </li>
+      </ol>
+    );
+  }
 
   return (
     <ol className="relative flex flex-col gap-6 pl-8">
