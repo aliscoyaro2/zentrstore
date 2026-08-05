@@ -4,9 +4,9 @@ import { useCart } from "@/lib/cart";
 
 const items = [
   { to: "/", label: "Explore", icon: Compass },
-  { to: "/orders", label: "Orders", icon: ClipboardList },
-  { to: "/cart", label: "Cart", icon: ShoppingBasket },
-  { to: "/account", label: "Profile", icon: User },
+  { to: "/customer/orders", label: "Orders", icon: ClipboardList },
+  { to: "/customer/cart", label: "Cart", icon: ShoppingBasket },
+  { to: "/customer/account", label: "Profile", icon: User },
 ] as const;
 
 export function BottomNav() {
