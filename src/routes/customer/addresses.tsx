@@ -9,13 +9,14 @@ import {
   X,
   Home,
   Briefcase,
-  Map,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
 import { roleHome } from "@/lib/roles";
 import { useState } from "react";
+import { CustomerAddressPicker } from "@/components/zentra/map/customer-address-picker";
+import type { PickedLocation } from "@/components/zentra/map/location-picker";
 
 export const Route = createFileRoute("/customer/addresses")({
   head: () => ({
@@ -36,12 +37,8 @@ function AddressesPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    label: "",
-    formatted: "",
-    lat: 0,
-    lng: 0,
-  });
+  const [label, setLabel] = useState("");
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
 
   // ── Fetch addresses ── (hooks must run unconditionally, before any early return)
   const addresses = useQuery({
@@ -206,45 +203,42 @@ function AddressesPage() {
   }
 
   const resetForm = () => {
-    setFormData({ label: "", formatted: "", lat: 0, lng: 0 });
+    setLabel("");
+    setPickedLocation(null);
   };
 
   const handleEdit = (address: any) => {
     setEditingId(address.id);
-    setFormData({
-      label: address.label || "",
-      formatted: address.formatted || "",
-      lat: address.lat || 0,
-      lng: address.lng || 0,
-    });
+    setLabel(address.label || "");
+    setPickedLocation(
+      address.lat && address.lng
+        ? { lat: address.lat, lng: address.lng, formatted: address.formatted || "" }
+        : null
+    );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.formatted.trim()) {
-      alert("Please enter an address.");
+    if (!pickedLocation) {
+      alert("Please search or tap the map to pick a delivery location.");
       return;
     }
-
-    // For now, use placeholder lat/lng (0,0) — in production, use Google Geocoding API
-    const lat = formData.lat || 0;
-    const lng = formData.lng || 0;
 
     if (editingId) {
       updateAddress.mutate({
         id: editingId,
-        label: formData.label || "Home",
-        formatted: formData.formatted,
-        lat,
-        lng,
+        label: label || "Home",
+        formatted: pickedLocation.formatted,
+        lat: pickedLocation.lat,
+        lng: pickedLocation.lng,
       });
     } else {
       addAddress.mutate({
-        label: formData.label || "Home",
-        formatted: formData.formatted,
-        lat,
-        lng,
+        label: label || "Home",
+        formatted: pickedLocation.formatted,
+        lat: pickedLocation.lat,
+        lng: pickedLocation.lng,
       });
     }
   };
@@ -304,50 +298,35 @@ function AddressesPage() {
               <div>
                 <label className="text-sm font-medium">Address Label</label>
                 <div className="mt-1 flex gap-2 flex-wrap">
-                  {["Home", "Office", "Other"].map((label) => (
+                  {["Home", "Office", "Other"].map((opt) => (
                     <button
-                      key={label}
+                      key={opt}
                       type="button"
-                      onClick={() =>
-                        setFormData((prev) => ({ ...prev, label }))
-                      }
+                      onClick={() => setLabel(opt)}
                       className={`px-3 py-1 text-xs rounded-full border ${
-                        formData.label === label
+                        label === opt
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border text-muted-foreground"
                       }`}
                     >
-                      {label}
+                      {opt}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Address</label>
-                <input
-                  type="text"
-                  value={formData.formatted}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      formatted: e.target.value,
-                    }))
-                  }
-                  placeholder="e.g., 123 Baga Road, Maiduguri"
-                  className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Enter a full address (map location will be added later)
-                </p>
+                <label className="text-sm font-medium">Delivery location</label>
+                <div className="mt-1">
+                  <CustomerAddressPicker value={pickedLocation} onChange={setPickedLocation} />
+                </div>
               </div>
 
               <div className="flex gap-3">
                 <button
                   type="submit"
                   className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground hover:bg-primary/90 transition"
-                  disabled={addAddress.isPending || updateAddress.isPending}
+                  disabled={addAddress.isPending || updateAddress.isPending || !pickedLocation}
                 >
                   {addAddress.isPending || updateAddress.isPending
                     ? "Saving..."
@@ -371,7 +350,7 @@ function AddressesPage() {
         {addressList.length === 0 && !showForm && !editingId && (
           <Panel className="p-8 text-center">
             <div className="flex flex-col items-center gap-2">
-              <Map className="size-12 text-muted-foreground/30" />
+              <MapPin className="size-12 text-muted-foreground/30" />
               <p className="text-sm font-medium">No addresses saved</p>
               <p className="text-xs text-muted-foreground">
                 Add your first delivery address above.
