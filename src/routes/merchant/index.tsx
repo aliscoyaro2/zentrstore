@@ -53,7 +53,7 @@ function MerchantDashboard() {
         .filter(o => o.status !== "cancelled" && o.status !== "refunded")
         .reduce((sum, o) => sum + o.total_kobo, 0);
 
-      const pending = (ordersToday.data ?? []).filter(o => o.status === "paid" || o.status === "placed").length;
+      const pending = (ordersToday.data ?? []).filter(o => o.status === "paid" || o.status === "placed" || o.status === "merchant_pending").length;
 
       return { todayCount, totalOrders, revenue, pending };
     },
@@ -73,6 +73,23 @@ function MerchantDashboard() {
         .limit(5);
       if (error) throw error;
       return data;
+    },
+    retry: 1,
+  });
+
+  // Fetch pending order count (for badge)
+  const pendingOrders = useQuery({
+    queryKey: ["merchant-pending-count", storeId],
+    enabled: Boolean(storeId),
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("merchant_id", storeId!)
+        .in("status", ["paid", "merchant_pending", "placed"]);
+      if (error) throw error;
+      return count ?? 0;
     },
     retry: 1,
   });
@@ -111,7 +128,7 @@ function MerchantDashboard() {
   }
 
   // Handle loading
-  if (stats.isLoading || recentOrders.isLoading) {
+  if (stats.isLoading || recentOrders.isLoading || pendingOrders.isLoading) {
     return (
       <MerchantLayout>
         <div className="space-y-4">
@@ -127,7 +144,7 @@ function MerchantDashboard() {
   }
 
   // Handle error
-  if (stats.error || recentOrders.error) {
+  if (stats.error || recentOrders.error || pendingOrders.error) {
     return (
       <MerchantLayout>
         <div className="text-center py-10">
@@ -140,17 +157,25 @@ function MerchantDashboard() {
 
   const data = stats.data;
   const orders = recentOrders.data ?? [];
+  const pendingCount = pendingOrders.data ?? 0;
 
   return (
     <MerchantLayout>
       <div className="space-y-6">
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Today's orders" value={String(data?.todayCount ?? 0)} icon={Package} />
           <StatCard label="Revenue today" value={naira(data?.revenue ?? 0)} icon={TrendingUp} />
-          <StatCard label="Pending actions" value={String(data?.pending ?? 0)} icon={Clock} tone="warning" />
+          <StatCard 
+            label="Pending orders" 
+            value={String(pendingCount)} 
+            icon={Clock} 
+            tone={pendingCount > 0 ? "warning" : "default"} 
+          />
           <StatCard label="Total orders" value={String(data?.totalOrders ?? 0)} icon={Package} />
         </div>
 
+        {/* Recent Orders */}
         <div>
           <h2 className="text-sm font-semibold mb-3">Recent orders</h2>
           <div className="space-y-2">
@@ -164,7 +189,7 @@ function MerchantDashboard() {
                       {o.order_items?.[0]?.products?.name
                         ? `${o.order_items[0].quantity}× ${o.order_items[0].products.name}`
                         : "Order"}
-                      {o.order_items?.length && o.order_items.length > 1 && ` +${o.order_items.length - 1} more`}
+                      {o.order_items?.length > 1 && ` +${o.order_items.length - 1} more`}
                     </p>
                     <p className="text-xs text-muted-foreground">{statusLabel(o.status)}</p>
                   </div>
@@ -173,6 +198,16 @@ function MerchantDashboard() {
               ))
             )}
           </div>
+        </div>
+
+        {/* Quick Action: View All Orders */}
+        <div className="flex justify-center">
+          <a
+            href="/merchant/orders"
+            className="text-sm font-semibold text-primary hover:underline"
+          >
+            View all orders →
+          </a>
         </div>
       </div>
     </MerchantLayout>
