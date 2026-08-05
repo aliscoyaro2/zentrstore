@@ -8,7 +8,7 @@ import { useRoleGuard } from "@/hooks/use-role-guard";
 import { useCart } from "@/lib/cart";
 import { DELIVERY_FEE_KOBO, naira, serviceFeeKobo } from "@/lib/money";
 
-export const Route = createFileRoute("/checkout")({
+export const Route = createFileRoute("/customer/checkout")({
   head: () => ({
     meta: [
       { title: "Checkout — Zentra" },

@@ -37,7 +37,7 @@ function MerchantProductsPage() {
       const { data, error } = await supabase
         .from("products")
         .select("id, name, description, price_kobo, category, is_available")
-        .eq("merchant_id", storeId)
+        .eq("merchant_id", storeId!)
         .order("category", { ascending: true });
       if (error) throw error;
       return data;

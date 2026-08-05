@@ -7,7 +7,7 @@ import { StatusRail, statusLabel } from "@/components/zentra/status-rail";
 import { useSession } from "@/hooks/use-session";
 import { naira } from "@/lib/money";
 
-export const Route = createFileRoute("/orders/$orderId")({
+export const Route = createFileRoute("/customer/orders/$orderId")({
   head: () => ({
     meta: [
       { title: "Order details — Zentra" },
@@ -36,9 +36,7 @@ function OrderDetailPage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason," +
-            "merchants(business_name,address_text,phone)," +
-            "order_items(id,quantity,unit_price_kobo,products(name))",
+          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason,merchants(business_name,address_text,phone),order_items(id,quantity,unit_price_kobo,products(name))",
         )
         .eq("id", orderId)
         .eq("customer_id", user!.id)

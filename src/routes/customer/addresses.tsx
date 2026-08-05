@@ -17,7 +17,7 @@ import { useSession } from "@/hooks/use-session";
 import { roleHome } from "@/lib/roles";
 import { useState } from "react";
 
-export const Route = createFileRoute("/addresses")({
+export const Route = createFileRoute("/customer/addresses")({
   head: () => ({
     meta: [
       { title: "My Addresses | Zentra" },

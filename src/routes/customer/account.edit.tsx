@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
 
-export const Route = createFileRoute("/account/edit")({
+export const Route = createFileRoute("/customer/account/edit")({
   head: () => ({
     meta: [
       { title: "Edit Profile | Zentra" },

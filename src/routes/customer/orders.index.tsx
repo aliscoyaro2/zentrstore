@@ -7,7 +7,7 @@ import { statusLabel } from "@/components/zentra/status-rail";
 import { useSession } from "@/hooks/use-session";
 import { naira } from "@/lib/money";
 
-export const Route = createFileRoute("/orders/")({
+export const Route = createFileRoute("/customer/orders/")({
   head: () => ({
     meta: [
       { title: "Your orders — Zentra" },

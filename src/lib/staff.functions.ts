@@ -79,7 +79,7 @@ export const inviteStaffMember = createServerFn({ method: "POST" })
       // Create profile for the new user
       const { error: profileInsertError } = await supabaseAdmin
         .from("profiles")
-        .update({ role: "staff", email: email.toLowerCase() })
+        .update({ email: email.toLowerCase() })
         .eq("id", targetUserId);
 
       if (profileInsertError) {

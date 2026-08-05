@@ -34,16 +34,16 @@ function MerchantDashboard() {
         supabase
           .from("orders")
           .select("id,status", { count: "exact", head: false })
-          .eq("merchant_id", storeId)
+          .eq("merchant_id", storeId!)
           .gte("placed_at", startOfDay.toISOString()),
         supabase
           .from("orders")
           .select("status", { count: "exact", head: false })
-          .eq("merchant_id", storeId),
+          .eq("merchant_id", storeId!),
         supabase
           .from("orders")
           .select("total_kobo,status")
-          .eq("merchant_id", storeId)
+          .eq("merchant_id", storeId!)
           .gte("placed_at", startOfDay.toISOString()),
       ]);
 
@@ -68,7 +68,7 @@ function MerchantDashboard() {
       const { data, error } = await supabase
         .from("orders")
         .select("id, status, total_kobo, placed_at, order_items(quantity, products(name))")
-        .eq("merchant_id", storeId)
+        .eq("merchant_id", storeId!)
         .order("placed_at", { ascending: false })
         .limit(5);
       if (error) throw error;

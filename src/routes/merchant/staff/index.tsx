@@ -123,7 +123,7 @@ function MerchantStaffPage() {
 
   const allStaff = [
     ...(owner ? [{
-      id: owner.owner_id,
+      id: owner.owner_id ?? "owner",
       role: "owner" as const,
       full_name: owner.profiles?.full_name ?? "Owner",
       email: owner.profiles?.email ?? "",

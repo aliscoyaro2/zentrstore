@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
 
-export const Route = createFileRoute("/settings")({
+export const Route = createFileRoute("/customer/settings")({
   head: () => ({
     meta: [
       { title: "Settings | Zentra" },

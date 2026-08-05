@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
 import { useSession } from "@/hooks/use-session";
 
-export const Route = createFileRoute("/account")({
+export const Route = createFileRoute("/customer/account")({
   head: () => ({
     meta: [
       { title: "Your Zentra profile" },

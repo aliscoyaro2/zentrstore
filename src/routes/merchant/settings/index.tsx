@@ -40,7 +40,7 @@ function MerchantSettingsPage() {
       const { data, error } = await supabase
         .from("merchants")
         .select("business_name, phone, address_text, delivery_radius_km, opening_time, closing_time, is_open_override")
-        .eq("id", storeId)
+        .eq("id", storeId!)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -95,7 +95,7 @@ function MerchantSettingsPage() {
         closing_time: form.closing_time || null,
         is_open_override: form.is_open_override,
       })
-      .eq("id", storeId);
+      .eq("id", storeId!);
     setSaving(false);
     if (error) {
       toast.error("Could not save", { description: error.message });

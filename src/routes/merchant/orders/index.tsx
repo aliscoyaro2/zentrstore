@@ -47,11 +47,11 @@ function MerchantOrdersPage() {
       let query = supabase
         .from("orders")
         .select("id, status, total_kobo, subtotal_kobo, placed_at, order_items(quantity, products(name))")
-        .eq("merchant_id", storeId)
+        .eq("merchant_id", storeId!)
         .order("placed_at", { ascending: false });
 
       if (filter === "active") {
-        query = query.in("status", ACTIVE_STATUSES as unknown as string[]);
+        query = query.in("status", [...ACTIVE_STATUSES]);
       } else if (filter === "completed") {
         query = query.in("status", ["delivered", "cancelled", "refunded"]);
       }
