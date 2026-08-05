@@ -2,162 +2,305 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Clock, Package } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Clock, CheckCircle2, XCircle, Package, AlertCircle } from "lucide-react";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
+import { AdminStatusBadge } from "@/components/admin/admin-status-badge";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
 import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
+import {
+  merchantAcceptOrder,
+  merchantRejectOrder,
+  merchantMarkReady,
+  getMerchantOrders,
+} from "@/lib/merchant-order.functions";
 
 export const Route = createFileRoute("/merchant/orders/")({
   head: () => ({
-    meta: [
-      { title: "Orders – Merchant" },
-      { name: "description", content: "Incoming and in-progress orders for your store." },
-    ],
+    meta: [{ title: "Orders – Merchant" }],
   }),
   component: MerchantOrdersPage,
 });
 
-// Statuses a merchant is actively responsible for moving forward.
-// Once an order reaches "rider_assigned" it's the rider's job from here.
-const ACTIVE_STATUSES = ["paid", "merchant_accepted", "preparing"] as const;
+const STATUS_TABS = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "active", label: "Active" },
+  { id: "completed", label: "Completed" },
+  { id: "cancelled", label: "Cancelled" },
+] as const;
 
-// What a merchant can move an order to next, and the button label for it.
-const NEXT_ACTION: Partial<Record<string, { next: string; label: string }>> = {
-  paid: { next: "merchant_accepted", label: "Accept order" },
-  merchant_accepted: { next: "preparing", label: "Start preparing" },
-  preparing: { next: "rider_assigned", label: "Mark ready for pickup" },
-};
-
-const STATUS_FILTERS = ["active", "completed", "all"] as const;
+type OrderStatusTab = typeof STATUS_TABS[number]["id"];
 
 function MerchantOrdersPage() {
   const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
+  const [activeTab, setActiveTab] = useState<OrderStatusTab>("pending");
+  const [prepTime, setPrepTime] = useState<number>(15);
+  const [rejectReason, setRejectReason] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
 
-  // All hooks must run unconditionally, on every render, in the same
-  // order — never place a hook call after an early `return`. We gate
-  // the query itself with `enabled` and gate what we *render* below.
+  // Fetch orders
   const orders = useQuery({
-    queryKey: ["merchant-orders", storeId, filter],
+    queryKey: ["merchant-orders", storeId, activeTab],
     enabled: Boolean(storeId),
-    queryFn: async () => {
-      let query = supabase
-        .from("orders")
-        .select("id, status, total_kobo, subtotal_kobo, placed_at, order_items(quantity, products(name))")
-        .eq("merchant_id", storeId!)
-        .order("placed_at", { ascending: false });
-
-      if (filter === "active") {
-        query = query.in("status", [...ACTIVE_STATUSES]);
-      } else if (filter === "completed") {
-        query = query.in("status", ["delivered", "cancelled", "refunded"]);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
+    refetchInterval: 15000,
+    queryFn: () => getMerchantOrders({ data: { status: activeTab } }),
+    retry: 1,
   });
 
-  if (permsLoading) return <MerchantLayout>Loading...</MerchantLayout>;
-  if (!storeId) return <MerchantLayout>No store found.</MerchantLayout>;
-
-  const canManageOrders = permissions?.orders === "full" || permissions?.orders === "view";
-  const canUpdateOrders = permissions?.orders === "full";
-  if (!canManageOrders) {
-    return <MerchantLayout><p>You don't have permission to view orders.</p></MerchantLayout>;
+  // Permissions
+  if (permsLoading) {
+    return (
+      <MerchantLayout>
+        <div className="flex justify-center py-10">
+          <div className="animate-pulse text-muted-foreground">Loading...</div>
+        </div>
+      </MerchantLayout>
+    );
   }
 
-  async function advanceOrder(orderId: string, nextStatus: string) {
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: nextStatus as never })
-      .eq("id", orderId);
-    if (error) {
-      toast.error("Could not update order", { description: error.message });
+  if (!storeId) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <p className="text-sm text-muted-foreground">No store found.</p>
+        </div>
+      </MerchantLayout>
+    );
+  }
+
+  if (permissions?.orders === "none") {
+    return (
+      <MerchantLayout>
+        <p className="text-sm text-muted-foreground">You don't have permission to view orders.</p>
+      </MerchantLayout>
+    );
+  }
+
+  const rows = orders.data ?? [];
+
+  // Count pending orders (for badge)
+  const pendingCount = rows.filter(o => 
+    o.status === "paid" || o.status === "merchant_pending" || o.status === "placed"
+  ).length;
+
+  async function handleAccept(orderId: string) {
+    try {
+      await merchantAcceptOrder({
+        data: {
+          orderId,
+          prepTimeMins: prepTime,
+        },
+      });
+      toast.success("Order accepted!");
+      setPrepTime(15);
+      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
+    } catch (err) {
+      toast.error("Could not accept", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  async function handleReject(orderId: string) {
+    if (!rejectReason.trim()) {
+      toast.error("Please provide a reason for rejecting.");
       return;
     }
-    toast.success("Order updated");
-    queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
-    queryClient.invalidateQueries({ queryKey: ["merchant-dashboard-stats", storeId] });
-    queryClient.invalidateQueries({ queryKey: ["merchant-recent-orders", storeId] });
+    try {
+      await merchantRejectOrder({
+        data: {
+          orderId,
+          reason: rejectReason.trim(),
+        },
+      });
+      toast.success("Order rejected");
+      setRejectReason("");
+      setShowRejectModal(false);
+      setSelectedOrderId(null);
+      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
+    } catch (err) {
+      toast.error("Could not reject", { description: err instanceof Error ? err.message : undefined });
+    }
   }
 
-  const orderList = orders.data ?? [];
+  async function handleMarkReady(orderId: string) {
+    try {
+      await merchantMarkReady({ data: { orderId } });
+      toast.success("Order marked ready! Looking for riders...");
+      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
+    } catch (err) {
+      toast.error("Could not mark ready", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  const canTakeAction = permissions?.orders === "full";
 
   return (
     <MerchantLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Orders</h2>
+        {/* Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {STATUS_TABS.map((tab) => {
+            const count = tab.id === "pending" ? pendingCount : 0;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:bg-secondary/70"
+                }`}
+              >
+                {tab.label}
+                {count > 0 && (
+                  <span className="grid size-4 place-items-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex gap-2">
-          {STATUS_FILTERS.map(f => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`rounded-full px-3 py-1 text-xs font-bold capitalize transition-colors ${
-                filter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-muted-foreground"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
+        {/* Orders List */}
         {orders.isLoading ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-20 animate-pulse rounded-xl bg-secondary" />
+              <div key={i} className="h-32 animate-pulse rounded-xl bg-secondary" />
             ))}
           </div>
-        ) : orders.error ? (
-          <div className="text-center py-10">
-            <p className="text-destructive font-semibold">Could not load orders</p>
-            <p className="text-sm text-muted-foreground mt-1">Please try refreshing the page.</p>
-          </div>
-        ) : orderList.length === 0 ? (
-          <div className="text-center py-10">
-            <Package className="mx-auto size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground mt-2">No orders here yet.</p>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Package className="size-12 text-muted-foreground/30" />
+            <p className="mt-3 font-medium">No orders in this status</p>
+            <p className="text-sm text-muted-foreground">
+              {activeTab === "pending" ? "New orders will appear here." : "Check other tabs."}
+            </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {orderList.map(o => {
-              const action = NEXT_ACTION[o.status];
-              const itemSummary = o.order_items?.[0]?.products?.name
-                ? `${o.order_items[0].quantity}× ${o.order_items[0].products.name}`
-                : "Order";
-              const extra = o.order_items?.length && o.order_items.length > 1
-                ? ` +${o.order_items.length - 1} more`
-                : "";
+          <div className="space-y-3">
+            {rows.map((order) => {
+              const isPending = order.status === "paid" || order.status === "merchant_pending" || order.status === "placed";
+              const isActive = order.status === "merchant_accepted" || order.status === "preparing";
+              const isReadyable = order.status === "merchant_accepted";
+
               return (
-                <div key={o.id} className="rounded-xl border border-border p-3 bg-card space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{itemSummary}{extra}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Clock className="size-3" />
-                        {statusLabel(o.status)}
+                <div
+                  key={order.id}
+                  className={`rounded-xl border p-4 bg-card transition-shadow ${
+                    isPending ? "border-primary/30 bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">
+                          #{order.id.slice(0, 8)}
+                        </p>
+                        <AdminStatusBadge status={order.status} label={statusLabel(order.status)} />
+                        {isPending && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
+                            <Clock className="size-3" />
+                            New
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {order.profiles?.full_name || "Customer"} · {order.profiles?.phone || ""}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {(order.order_items ?? []).map((item, idx) => (
+                          <span key={idx} className="text-xs bg-secondary px-2 py-0.5 rounded-full">
+                            {item.quantity}× {item.products?.name || "Item"}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {order.placed_at ? new Date(order.placed_at).toLocaleString() : ""}
                       </p>
                     </div>
-                    <span className="font-display font-bold">{naira(o.total_kobo)}</span>
+                    <div className="text-right">
+                      <p className="font-display font-bold">{naira(order.total_kobo)}</p>
+                      {order.prep_time_mins && (
+                        <p className="text-xs text-muted-foreground">
+                          Prep: {order.prep_time_mins} min
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {action && canUpdateOrders && (
-                    <button
-                      type="button"
-                      onClick={() => advanceOrder(o.id, action.next)}
-                      className="w-full rounded-lg bg-primary py-2 text-xs font-bold text-primary-foreground"
-                    >
-                      {action.label}
-                    </button>
+
+                  {/* Actions */}
+                  {canTakeAction && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {isPending && (
+                        <>
+                          {/* Accept with prep time selector */}
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={prepTime}
+                              onChange={(e) => setPrepTime(Number(e.target.value))}
+                              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+                            >
+                              {[5, 10, 15, 20, 25, 30, 45, 60].map(m => (
+                                <option key={m} value={m}>{m} min</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleAccept(order.id)}
+                              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
+                            >
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="size-3.5" />
+                                Accept
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedOrderId(order.id);
+                                setShowRejectModal(true);
+                              }}
+                              className="rounded-lg border border-destructive px-3 py-1.5 text-xs font-bold text-destructive"
+                            >
+                              <span className="flex items-center gap-1">
+                                <XCircle className="size-3.5" />
+                                Reject
+                              </span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {isReadyable && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkReady(order.id)}
+                          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground"
+                        >
+                          <span className="flex items-center gap-1">
+                            <Package className="size-3.5" />
+                            Mark Ready for Pickup
+                          </span>
+                        </button>
+                      )}
+
+                      {order.status === "preparing" && (
+                        <button
+                          type="button"
+                          disabled
+                          className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-bold text-muted-foreground"
+                        >
+                          <span className="flex items-center gap-1">
+                            <Clock className="size-3.5 animate-pulse" />
+                            Looking for rider...
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -165,6 +308,43 @@ function MerchantOrdersPage() {
           </div>
         )}
       </div>
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowRejectModal(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display text-lg font-bold">Reject Order</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Why are you rejecting this order?</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Item unavailable, store closed..."
+              className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                  setSelectedOrderId(null);
+                }}
+                className="flex-1 rounded-lg border border-border py-2 text-sm font-bold text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => selectedOrderId && handleReject(selectedOrderId)}
+                className="flex-1 rounded-lg bg-destructive py-2 text-sm font-bold text-destructive-foreground"
+              >
+                Reject Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MerchantLayout>
   );
 }
