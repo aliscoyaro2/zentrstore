@@ -136,8 +136,8 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
       .from("merchants")
       .insert({
         owner_id: ownerId,
-        business_name: app.business_name,
-        category: app.category,
+        business_name: app.business_name ?? "Unnamed store",
+        category: app.category ?? "grocery",
         business_description: app.business_description,
         address_text: app.address_text,
         // No geocoding step in this application flow yet — placeholder
@@ -153,8 +153,7 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
         self_delivery: app.self_delivery ?? false,
         pos_available: app.pos_available ?? false,
         cover_photo_url: app.cover_photo_url,
-        cac_doc_url: app.cac_doc_url,
-        bank_name: app.bank_name,
+          bank_name: app.bank_name,
         bank_account_number: app.account_number,
         bank_account_name: app.account_name,
         status: "approved",

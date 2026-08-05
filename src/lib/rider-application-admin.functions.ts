@@ -129,7 +129,6 @@ export const approveRiderApplication = createServerFn({ method: "POST" })
       status: "approved",
       vehicle_make: null,
       vehicle_model: null,
-      vehicle_type: app.vehicle_type,
       plate_number: app.plate_number,
       photo_url: app.photo_url,
       date_of_birth: app.date_of_birth,
