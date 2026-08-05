@@ -880,9 +880,11 @@ export type Database = {
           cancelled_at: string | null
           cart_session_id: string | null
           customer_id: string | null
+          customer_report_reason: string | null
           delivered_at: string | null
           delivery_address_id: string | null
           delivery_code: string | null
+          delivery_confirmed_at: string | null
           delivery_fee_kobo: number
           financial_status:
             | Database["public"]["Enums"]["financial_status"]
@@ -908,9 +910,11 @@ export type Database = {
           cancelled_at?: string | null
           cart_session_id?: string | null
           customer_id?: string | null
+          customer_report_reason?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
           delivery_code?: string | null
+          delivery_confirmed_at?: string | null
           delivery_fee_kobo: number
           financial_status?:
             | Database["public"]["Enums"]["financial_status"]
@@ -936,9 +940,11 @@ export type Database = {
           cancelled_at?: string | null
           cart_session_id?: string | null
           customer_id?: string | null
+          customer_report_reason?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
           delivery_code?: string | null
+          delivery_confirmed_at?: string | null
           delivery_fee_kobo?: number
           financial_status?:
             | Database["public"]["Enums"]["financial_status"]
@@ -1946,6 +1952,7 @@ export type Database = {
         Args: { p_approve: boolean; p_note: string; p_request_id: string }
         Returns: undefined
       }
+      confirm_delivery: { Args: { p_order_id: string }; Returns: undefined }
       decline_order_offer: { Args: { p_offer_id: string }; Returns: undefined }
       dispatch_order: { Args: { p_order_id: string }; Returns: string }
       expire_and_reassign_offers: { Args: never; Returns: undefined }
@@ -1954,6 +1961,10 @@ export type Database = {
       is_store_owner: { Args: { target_store_id: string }; Returns: boolean }
       log_rider_arrival: {
         Args: { p_leg: string; p_order_id: string }
+        Returns: undefined
+      }
+      report_delivery_problem: {
+        Args: { p_order_id: string; p_reason: string }
         Returns: undefined
       }
       request_order_cancellation: {
