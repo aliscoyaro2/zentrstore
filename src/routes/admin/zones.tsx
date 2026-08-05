@@ -29,13 +29,18 @@ type ZoneRow = {
   max_radius_km: number;
   estimated_minutes: number;
   is_active: boolean;
+  city_id: string | null;
+  cities: { name: string } | null;
 };
+
+type CityOption = { id: string; name: string };
 
 function ZonesPage() {
   const { ready } = useRoleGuard("admin");
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newCityId, setNewCityId] = useState("");
 
   const zones = useQuery({
     queryKey: ["admin-zones"],
@@ -43,10 +48,29 @@ function ZonesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("zones")
-        .select("id,name,lat,lng,delivery_fee_kobo,minimum_order_kobo,max_radius_km,estimated_minutes,is_active")
+        .select(
+          "id,name,lat,lng,delivery_fee_kobo,minimum_order_kobo,max_radius_km,estimated_minutes,is_active,city_id,cities(name)",
+        )
         .order("name");
       if (error) throw error;
-      return data as ZoneRow[];
+      return data as unknown as ZoneRow[];
+    },
+  });
+
+  // Cities feed the "New zone" form's city picker. Today this only ever
+  // returns Maiduguri, but the picker (and createZone below) already work
+  // correctly the moment a second city is added — no further changes needed.
+  const cities = useQuery({
+    queryKey: ["admin-geo-cities"],
+    enabled: ready,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cities")
+        .select("id,name")
+        .eq("status", "active")
+        .order("name");
+      if (error) throw error;
+      return data as CityOption[];
     },
   });
 
@@ -81,13 +105,19 @@ function ZonesPage() {
 
   async function createZone() {
     if (!newName.trim()) return;
-    const { error } = await supabase.from("zones").insert({ name: newName.trim() });
+    const cityId = newCityId || cities.data?.[0]?.id;
+    if (!cityId) {
+      toast.error("No city available", { description: "Add a city before creating a zone." });
+      return;
+    }
+    const { error } = await supabase.from("zones").insert({ name: newName.trim(), city_id: cityId });
     if (error) {
       toast.error("Could not create zone", { description: error.message });
       return;
     }
     toast.success("Zone created");
     setNewName("");
+    setNewCityId("");
     setCreating(false);
     queryClient.invalidateQueries({ queryKey: ["admin-zones"] });
   }
@@ -114,7 +144,7 @@ function ZonesPage() {
       </div>
 
       {creating ? (
-        <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4 shadow-sm">
           <input
             autoFocus
             value={newName}
@@ -123,6 +153,18 @@ function ZonesPage() {
             placeholder="Zone name, e.g. Gwange"
             className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-primary/20 focus:ring-2"
           />
+          <select
+            value={newCityId || cities.data?.[0]?.id || ""}
+            onChange={(e) => setNewCityId(e.target.value)}
+            aria-label="City"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-primary/20 focus:ring-2"
+          >
+            {(cities.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
           <button type="button" onClick={createZone} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
             Save
           </button>
@@ -131,6 +173,7 @@ function ZonesPage() {
             onClick={() => {
               setCreating(false);
               setNewName("");
+              setNewCityId("");
             }}
             className="rounded-lg border border-border px-3 py-2 text-xs font-bold text-muted-foreground"
           >
@@ -153,7 +196,8 @@ function ZonesPage() {
                   <div>
                     <p className="font-display text-sm font-bold text-foreground">{zone.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {zone.lat && zone.lng ? `${zone.lat.toFixed(4)}, ${zone.lng.toFixed(4)}` : "No centre pin yet"}
+                      {zone.cities?.name ?? "No city assigned"}
+                      {zone.lat && zone.lng ? ` · ${zone.lat.toFixed(4)}, ${zone.lng.toFixed(4)}` : ""}
                     </p>
                   </div>
                 </div>
