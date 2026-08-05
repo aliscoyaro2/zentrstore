@@ -6,6 +6,9 @@ import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell
 import { StatusRail, statusLabel } from "@/components/zentra/status-rail";
 import { useSession } from "@/hooks/use-session";
 import { naira } from "@/lib/money";
+import { OrderRouteMap } from "@/components/zentra/map/order-route-map";
+
+const RIDER_IN_FLIGHT_STATUSES = ["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer"];
 
 export const Route = createFileRoute("/customer/orders/$orderId")({
   head: () => ({
@@ -32,11 +35,15 @@ function OrderDetailPage() {
   const order = useQuery({
     queryKey: ["order-detail", orderId, user?.id],
     enabled: Boolean(user),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && RIDER_IN_FLIGHT_STATUSES.includes(status) ? 8000 : false;
+    },
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason,merchants(business_name,address_text,phone),order_items(id,quantity,unit_price_kobo,products(name))",
+          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason,merchants(business_name,address_text,phone,lat,lng),addresses(formatted,lat,lng),riders(current_lat,current_lng),order_items(id,quantity,unit_price_kobo,products(name))",
         )
         .eq("id", orderId)
         .eq("customer_id", user!.id)
@@ -65,6 +72,34 @@ function OrderDetailPage() {
                 <p className="mt-4 text-xs text-destructive">{order.data.cancel_reason}</p>
               )}
             </Panel>
+
+            {order.data.merchants?.lat != null &&
+              order.data.merchants?.lng != null &&
+              order.data.addresses?.lat != null &&
+              order.data.addresses?.lng != null && (
+                <Panel className="overflow-hidden p-0">
+                  <OrderRouteMap
+                    merchant={{
+                      lat: order.data.merchants.lat,
+                      lng: order.data.merchants.lng,
+                      label: order.data.merchants.business_name ?? "Store",
+                    }}
+                    customer={{
+                      lat: order.data.addresses.lat,
+                      lng: order.data.addresses.lng,
+                      label: order.data.addresses.formatted ?? "Delivery address",
+                    }}
+                    rider={
+                      RIDER_IN_FLIGHT_STATUSES.includes(order.data.status) &&
+                      order.data.riders?.current_lat != null &&
+                      order.data.riders?.current_lng != null
+                        ? { lat: order.data.riders.current_lat, lng: order.data.riders.current_lng }
+                        : null
+                    }
+                    className="h-56 w-full rounded-none border-0"
+                  />
+                </Panel>
+              )}
 
             <Panel className="space-y-3 p-4">
               <p className="text-sm font-semibold">Items</p>
