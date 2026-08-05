@@ -24,7 +24,7 @@ export function BottomNav() {
             >
               <span className="relative">
                 <Icon className="size-5" strokeWidth={2.2} />
-                {to === "/cart" && count > 0 ? (
+                {to === "/customer/cart" && count > 0 ? (
                   <span className="absolute -right-2 -top-1.5 grid size-4 place-items-center rounded-full bg-accent text-[9px] font-bold text-accent-foreground">
                     {count}
                   </span>

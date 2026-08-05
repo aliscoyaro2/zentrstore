@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/client.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type ActorType = 'customer' | 'merchant' | 'rider' | 'system' | 'admin';
 
@@ -116,7 +116,7 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
     };
 
     if (data.financialStatus) {
-      updatePayload.financial_status = data.financialStatus;
+      updatePayload["financial_status"] = data.financialStatus;
     }
 
     // Update the order
