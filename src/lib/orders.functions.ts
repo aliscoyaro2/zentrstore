@@ -25,7 +25,9 @@ export const initPaystackPayment = createServerFn({ method: "POST" })
     if (!order || order.customer_id !== userId) {
       throw new Response("Not found", { status: 404 });
     }
-    if (order.status !== "placed") {
+
+    // ✅ FIX: Accept both 'created' and 'payment_pending' statuses
+    if (order.status !== "created" && order.status !== "payment_pending") {
       throw new Error(`Order is already ${order.status}, cannot start payment.`);
     }
 
@@ -34,6 +36,7 @@ export const initPaystackPayment = createServerFn({ method: "POST" })
       .select("email")
       .eq("id", userId)
       .maybeSingle();
+
     if (profileError) throw new Error(profileError.message);
     if (!profile?.email) throw new Error("No email on file for this account.");
 
