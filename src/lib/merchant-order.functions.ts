@@ -41,13 +41,12 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
       throw new Error(`Order is already ${order.status}, cannot accept.`);
     }
 
-    // ✅ REMOVED merchant_accepted_at (column doesn't exist)
+    // ✅ REMOVED: merchant_notes (column doesn't exist)
     const { error: updateError } = await supabase
       .from("orders")
       .update({
         status: "merchant_accepted",
         prep_time_mins: data.prepTimeMins,
-        merchant_notes: data.notes || null,
       })
       .eq("id", data.orderId);
 
