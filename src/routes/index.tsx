@@ -71,7 +71,15 @@ function CustomerBrowse() {
   const zones = useQuery({
     queryKey: ["zones"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("zones").select("id,name,lat,lng").order("name");
+      // city_id, cities(name) let this list be scoped/labelled by city once
+      // Zentra expands beyond Maiduguri — harmless to select today since
+      // there's only one city, but it means this query doesn't need to
+      // change again when a second city launches.
+      const { data, error } = await supabase
+        .from("zones")
+        .select("id,name,lat,lng,city_id,cities(name)")
+        .eq("status", "active")
+        .order("name");
       if (error) throw error;
       return data;
     },
