@@ -6,7 +6,6 @@ import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { StatCard } from "@/components/admin/stat-card";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
-import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
 
 export const Route = createFileRoute("/merchant/")({
   head: () => ({
@@ -19,40 +18,31 @@ export const Route = createFileRoute("/merchant/")({
 });
 
 function MerchantDashboard() {
-  const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
+  // ✅ ALL HOOKS FIRST, UNCONDITIONALLY
 
-  if (permsLoading) {
-    return (
-      <MerchantLayout>
-        <div className="animate-pulse p-4">Loading...</div>
-      </MerchantLayout>
-    );
-  }
+  // Get store ID
+  const { data: store } = useQuery({
+    queryKey: ["merchant-dashboard-store"],
+    queryFn: async () => {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return null;
+      const { data, error } = await supabase
+        .from("merchants")
+        .select("id")
+        .eq("owner_id", user.user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    retry: 1,
+  });
 
-  if (!storeId) {
-    return (
-      <MerchantLayout>
-        <div className="text-center py-10">
-          <AlertCircle className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">No store associated with this account.</p>
-          <p className="text-xs text-muted-foreground mt-1">Please contact support or register a store.</p>
-        </div>
-      </MerchantLayout>
-    );
-  }
+  const storeId = store?.id;
 
-  const canViewDashboard = permissions?.dashboard === "full" || permissions?.dashboard === "view";
-  if (!canViewDashboard) {
-    return (
-      <MerchantLayout>
-        <p className="text-sm text-muted-foreground">You don't have permission to view the dashboard.</p>
-      </MerchantLayout>
-    );
-  }
-
-  // Fetch stats
+  // Dashboard stats
   const stats = useQuery({
     queryKey: ["merchant-dashboard-stats", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -80,7 +70,7 @@ function MerchantDashboard() {
         .filter(o => o.status !== "cancelled" && o.status !== "refunded")
         .reduce((sum, o) => sum + o.total_kobo, 0);
 
-      const pending = (ordersToday.data ?? []).filter(o => 
+      const pending = (ordersToday.data ?? []).filter(o =>
         o.status === "paid" || o.status === "merchant_pending" || o.status === "placed"
       ).length;
 
@@ -95,20 +85,21 @@ function MerchantDashboard() {
     enabled: Boolean(storeId),
     refetchInterval: 15000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from("orders")
         .select("id", { count: "exact", head: true })
         .eq("merchant_id", storeId!)
         .in("status", ["placed", "paid", "merchant_pending"]);
       if (error) throw error;
-      return data?.length || 0;
+      return count || 0;
     },
     retry: 1,
   });
 
-  // Fetch recent orders (limit 5)
+  // Recent orders
   const recentOrders = useQuery({
     queryKey: ["merchant-recent-orders", storeId],
+    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -121,6 +112,18 @@ function MerchantDashboard() {
     },
     retry: 1,
   });
+
+  // ✅ EARLY RETURNS AFTER ALL HOOKS
+  if (!storeId) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <AlertCircle className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-2 text-sm text-muted-foreground">No store associated with this account.</p>
+        </div>
+      </MerchantLayout>
+    );
+  }
 
   if (stats.isLoading || recentOrders.isLoading || pendingOrders.isLoading) {
     return (
@@ -143,7 +146,13 @@ function MerchantDashboard() {
         <div className="text-center py-10">
           <AlertCircle className="mx-auto size-8 text-destructive" />
           <p className="mt-2 text-sm text-destructive">Could not load dashboard data</p>
-          <p className="text-xs text-muted-foreground mt-1">Please try refreshing the page.</p>
+          <button
+            type="button"
+            onClick={() => { stats.refetch(); recentOrders.refetch(); }}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+          >
+            Retry
+          </button>
         </div>
       </MerchantLayout>
     );
@@ -158,11 +167,11 @@ function MerchantDashboard() {
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Today's orders" value={String(data?.todayCount ?? 0)} icon={Package} />
           <StatCard label="Revenue today" value={naira(data?.revenue ?? 0)} icon={TrendingUp} />
-          <StatCard 
-            label="Pending orders" 
-            value={String(pendingOrders.data ?? 0)} 
-            icon={Clock} 
-            tone={pendingOrders.data > 0 ? "warning" : "default"} 
+          <StatCard
+            label="Pending orders"
+            value={String(pendingOrders.data ?? 0)}
+            icon={Clock}
+            tone={pendingOrders.data > 0 ? "warning" : "default"}
           />
           <StatCard label="Total orders" value={String(data?.totalOrders ?? 0)} icon={Package} />
         </div>
