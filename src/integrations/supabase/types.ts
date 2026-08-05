@@ -16,36 +16,70 @@ export type Database = {
     Tables: {
       addresses: {
         Row: {
+          apartment: string | null
+          building_number: string | null
           created_at: string | null
+          floor: string | null
           formatted: string | null
+          google_place_id: string | null
           id: string
           is_default: boolean | null
           label: string | null
+          landmark: string | null
           lat: number
           lng: number
+          plus_code: string | null
+          status: Database["public"]["Enums"]["geo_status"]
+          street_id: string | null
+          updated_at: string
           user_id: string | null
         }
         Insert: {
+          apartment?: string | null
+          building_number?: string | null
           created_at?: string | null
+          floor?: string | null
           formatted?: string | null
+          google_place_id?: string | null
           id?: string
           is_default?: boolean | null
           label?: string | null
+          landmark?: string | null
           lat: number
           lng: number
+          plus_code?: string | null
+          status?: Database["public"]["Enums"]["geo_status"]
+          street_id?: string | null
+          updated_at?: string
           user_id?: string | null
         }
         Update: {
+          apartment?: string | null
+          building_number?: string | null
           created_at?: string | null
+          floor?: string | null
           formatted?: string | null
+          google_place_id?: string | null
           id?: string
           is_default?: boolean | null
           label?: string | null
+          landmark?: string | null
           lat?: number
           lng?: number
+          plus_code?: string | null
+          status?: Database["public"]["Enums"]["geo_status"]
+          street_id?: string | null
+          updated_at?: string
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "addresses_street_id_fkey"
+            columns: ["street_id"]
+            isOneToOne: false
+            referencedRelation: "streets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "addresses_user_id_fkey"
             columns: ["user_id"]
@@ -119,6 +153,44 @@ export type Database = {
           },
         ]
       }
+      areas: {
+        Row: {
+          area_name: string
+          created_at: string
+          id: string
+          postal_code: string | null
+          status: Database["public"]["Enums"]["geo_status"]
+          updated_at: string
+          zone_id: string
+        }
+        Insert: {
+          area_name: string
+          created_at?: string
+          id?: string
+          postal_code?: string | null
+          status?: Database["public"]["Enums"]["geo_status"]
+          updated_at?: string
+          zone_id: string
+        }
+        Update: {
+          area_name?: string
+          created_at?: string
+          id?: string
+          postal_code?: string | null
+          status?: Database["public"]["Enums"]["geo_status"]
+          updated_at?: string
+          zone_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "areas_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cancellation_requests: {
         Row: {
           created_at: string
@@ -169,6 +241,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cities: {
+        Row: {
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          population: number | null
+          slug: string
+          state_id: string
+          status: Database["public"]["Enums"]["geo_status"]
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          population?: number | null
+          slug: string
+          state_id: string
+          status?: Database["public"]["Enums"]["geo_status"]
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          population?: number | null
+          slug?: string
+          state_id?: string
+          status?: Database["public"]["Enums"]["geo_status"]
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cities_state_id_fkey"
+            columns: ["state_id"]
+            isOneToOne: false
+            referencedRelation: "states"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      countries: {
+        Row: {
+          created_at: string
+          currency_code: string
+          currency_symbol: string
+          id: string
+          iso_code: string
+          name: string
+          phone_code: string | null
+          status: Database["public"]["Enums"]["geo_status"]
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency_code?: string
+          currency_symbol?: string
+          id?: string
+          iso_code: string
+          name: string
+          phone_code?: string | null
+          status?: Database["public"]["Enums"]["geo_status"]
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency_code?: string
+          currency_symbol?: string
+          id?: string
+          iso_code?: string
+          name?: string
+          phone_code?: string | null
+          status?: Database["public"]["Enums"]["geo_status"]
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       incidents: {
         Row: {
@@ -401,6 +562,7 @@ export type Database = {
       }
       merchants: {
         Row: {
+          address_id: string | null
           address_text: string | null
           bank_account_name: string | null
           bank_account_number: string | null
@@ -428,6 +590,7 @@ export type Database = {
           status: Database["public"]["Enums"]["approval_status"]
         }
         Insert: {
+          address_id?: string | null
           address_text?: string | null
           bank_account_name?: string | null
           bank_account_number?: string | null
@@ -455,6 +618,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["approval_status"]
         }
         Update: {
+          address_id?: string | null
           address_text?: string | null
           bank_account_name?: string | null
           bank_account_number?: string | null
@@ -482,6 +646,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["approval_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "merchants_address_id_fkey"
+            columns: ["address_id"]
+            isOneToOne: false
+            referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "merchants_owner_id_fkey"
             columns: ["owner_id"]
@@ -707,6 +878,7 @@ export type Database = {
           batch_id: string | null
           cancel_reason: string | null
           cancelled_at: string | null
+          cart_session_id: string | null
           customer_id: string | null
           delivered_at: string | null
           delivery_address_id: string | null
@@ -734,6 +906,7 @@ export type Database = {
           batch_id?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
+          cart_session_id?: string | null
           customer_id?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
@@ -761,6 +934,7 @@ export type Database = {
           batch_id?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
+          cart_session_id?: string | null
           customer_id?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
@@ -1463,6 +1637,47 @@ export type Database = {
           },
         ]
       }
+      states: {
+        Row: {
+          capital: string | null
+          code: string | null
+          country_id: string
+          created_at: string
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["geo_status"]
+          updated_at: string
+        }
+        Insert: {
+          capital?: string | null
+          code?: string | null
+          country_id: string
+          created_at?: string
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["geo_status"]
+          updated_at?: string
+        }
+        Update: {
+          capital?: string | null
+          code?: string | null
+          country_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["geo_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "states_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_staff: {
         Row: {
           accepted_at: string | null
@@ -1517,6 +1732,41 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      streets: {
+        Row: {
+          area_id: string
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["geo_status"]
+          street_name: string
+          updated_at: string
+        }
+        Insert: {
+          area_id: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["geo_status"]
+          street_name: string
+          updated_at?: string
+        }
+        Update: {
+          area_id?: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["geo_status"]
+          street_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streets_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "areas"
             referencedColumns: ["id"]
           },
         ]
@@ -1621,6 +1871,7 @@ export type Database = {
       zones: {
         Row: {
           boundary: Json | null
+          city_id: string | null
           created_at: string | null
           delivery_fee_kobo: number | null
           estimated_minutes: number | null
@@ -1631,9 +1882,15 @@ export type Database = {
           max_radius_km: number | null
           minimum_order_kobo: number
           name: string
+          polygon_coordinates: Json | null
+          priority: number
+          status: Database["public"]["Enums"]["geo_status"]
+          updated_at: string
+          zone_code: string | null
         }
         Insert: {
           boundary?: Json | null
+          city_id?: string | null
           created_at?: string | null
           delivery_fee_kobo?: number | null
           estimated_minutes?: number | null
@@ -1644,9 +1901,15 @@ export type Database = {
           max_radius_km?: number | null
           minimum_order_kobo?: number
           name: string
+          polygon_coordinates?: Json | null
+          priority?: number
+          status?: Database["public"]["Enums"]["geo_status"]
+          updated_at?: string
+          zone_code?: string | null
         }
         Update: {
           boundary?: Json | null
+          city_id?: string | null
           created_at?: string | null
           delivery_fee_kobo?: number | null
           estimated_minutes?: number | null
@@ -1657,8 +1920,21 @@ export type Database = {
           max_radius_km?: number | null
           minimum_order_kobo?: number
           name?: string
+          polygon_coordinates?: Json | null
+          priority?: number
+          status?: Database["public"]["Enums"]["geo_status"]
+          updated_at?: string
+          zone_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zones_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "cities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1702,6 +1978,7 @@ export type Database = {
         | "settled"
         | "refund_pending"
         | "refunded"
+      geo_status: "active" | "inactive" | "under_maintenance" | "archived"
       incident_status: "open" | "in_progress" | "resolved"
       incident_type:
         | "breakdown"
@@ -1926,6 +2203,7 @@ export const Constants = {
         "refund_pending",
         "refunded",
       ],
+      geo_status: ["active", "inactive", "under_maintenance", "archived"],
       incident_status: ["open", "in_progress", "resolved"],
       incident_type: [
         "breakdown",
