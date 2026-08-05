@@ -3,16 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Clock, CheckCircle2, XCircle, Package, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
-import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
 import {
   merchantAcceptOrder,
   merchantRejectOrder,
   merchantMarkReady,
-  getMerchantOrders,
 } from "@/lib/merchant-order.functions";
 
 export const Route = createFileRoute("/merchant/orders/")({
@@ -33,7 +32,6 @@ const STATUS_TABS = [
 type OrderStatusTab = typeof STATUS_TABS[number]["id"];
 
 function MerchantOrdersPage() {
-  const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<OrderStatusTab>("pending");
   const [prepTime, setPrepTime] = useState<number>(15);
@@ -41,45 +39,115 @@ function MerchantOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
 
-  // Fetch orders using the server function
+  // Get store ID
+  const { data: store } = useQuery({
+    queryKey: ["merchant-store-id"],
+    queryFn: async () => {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return null;
+      
+      const { data, error } = await supabase
+        .from("merchants")
+        .select("id")
+        .eq("owner_id", user.user.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const storeId = store?.id;
+
+  // Fetch orders directly - REMOVED merchant_accepted_at column
   const orders = useQuery({
     queryKey: ["merchant-orders", storeId, activeTab],
     enabled: Boolean(storeId),
     refetchInterval: 15000,
-    queryFn: () => getMerchantOrders({ data: { status: activeTab } }),
+    queryFn: async () => {
+      let query = supabase
+        .from("orders")
+        .select(`
+          id,
+          status,
+          total_kobo,
+          placed_at,
+          paid_at,
+          prep_time_mins,
+          customer_id,
+          profiles:customer_id (
+            full_name,
+            phone
+          ),
+          order_items (
+            id,
+            quantity,
+            unit_price_kobo,
+            products (
+              name
+            )
+          )
+        `)
+        .eq("merchant_id", storeId!)
+        .order("placed_at", { ascending: false });
+
+      if (activeTab === "pending") {
+        query = query.in("status", [
+          "placed",
+          "created",
+          "payment_pending",
+          "paid",
+          "merchant_pending"
+        ]);
+      } else if (activeTab === "active") {
+        query = query.in("status", [
+          "merchant_accepted",
+          "preparing",
+          "rider_assigned",
+          "rider_en_route_to_merchant",
+          "picked_up",
+          "rider_en_route_to_customer"
+        ]);
+      } else if (activeTab === "completed") {
+        query = query.in("status", ["delivered", "completed"]);
+      } else if (activeTab === "cancelled") {
+        query = query.in("status", [
+          "cancelled",
+          "refunded",
+          "merchant_rejected"
+        ]);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
     retry: 1,
   });
-
-  // Handle loading state
-  if (permsLoading) {
-    return (
-      <MerchantLayout>
-        <div className="flex justify-center py-10">
-          <div className="animate-pulse text-muted-foreground">Loading...</div>
-        </div>
-      </MerchantLayout>
-    );
-  }
 
   if (!storeId) {
     return (
       <MerchantLayout>
         <div className="text-center py-10">
-          <p className="text-sm text-muted-foreground">No store found.</p>
+          <AlertCircle className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-2 text-sm text-muted-foreground">No store found.</p>
         </div>
       </MerchantLayout>
     );
   }
 
-  if (permissions?.orders === "none") {
+  if (orders.isLoading) {
     return (
       <MerchantLayout>
-        <p className="text-sm text-muted-foreground">You don't have permission to view orders.</p>
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-32 animate-pulse rounded-xl bg-secondary" />
+          ))}
+        </div>
       </MerchantLayout>
     );
   }
 
-  // Handle error state
   if (orders.error) {
     return (
       <MerchantLayout>
@@ -102,13 +170,9 @@ function MerchantOrdersPage() {
   }
 
   const rows = orders.data ?? [];
-
-  // Count pending orders
   const pendingCount = rows.filter(o =>
     o.status === "paid" || o.status === "merchant_pending" || o.status === "placed"
   ).length;
-
-  const canTakeAction = permissions?.orders === "full";
 
   async function handleAccept(orderId: string) {
     try {
@@ -151,7 +215,7 @@ function MerchantOrdersPage() {
   async function handleMarkReady(orderId: string) {
     try {
       await merchantMarkReady({ data: { orderId } });
-      toast.success("Order marked ready! Looking for riders...");
+      toast.success("Order marked ready!");
       queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
     } catch (err) {
       toast.error("Could not mark ready", { description: err instanceof Error ? err.message : undefined });
@@ -188,13 +252,7 @@ function MerchantOrdersPage() {
         </div>
 
         {/* Orders List */}
-        {orders.isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-32 animate-pulse rounded-xl bg-secondary" />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Package className="size-12 text-muted-foreground/30" />
             <p className="mt-3 font-medium">No orders in this status</p>
@@ -254,74 +312,72 @@ function MerchantOrdersPage() {
                   </div>
 
                   {/* Actions */}
-                  {canTakeAction && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {isPending && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={prepTime}
-                              onChange={(e) => setPrepTime(Number(e.target.value))}
-                              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
-                            >
-                              {[5, 10, 15, 20, 25, 30, 45, 60].map(m => (
-                                <option key={m} value={m}>{m} min</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => handleAccept(order.id)}
-                              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
-                            >
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="size-3.5" />
-                                Accept
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedOrderId(order.id);
-                                setShowRejectModal(true);
-                              }}
-                              className="rounded-lg border border-destructive px-3 py-1.5 text-xs font-bold text-destructive"
-                            >
-                              <span className="flex items-center gap-1">
-                                <XCircle className="size-3.5" />
-                                Reject
-                              </span>
-                            </button>
-                          </div>
-                        </>
-                      )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isPending && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={prepTime}
+                            onChange={(e) => setPrepTime(Number(e.target.value))}
+                            className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+                          >
+                            {[5, 10, 15, 20, 25, 30, 45, 60].map(m => (
+                              <option key={m} value={m}>{m} min</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleAccept(order.id)}
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
+                          >
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="size-3.5" />
+                              Accept
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setShowRejectModal(true);
+                            }}
+                            className="rounded-lg border border-destructive px-3 py-1.5 text-xs font-bold text-destructive"
+                          >
+                            <span className="flex items-center gap-1">
+                              <XCircle className="size-3.5" />
+                              Reject
+                            </span>
+                          </button>
+                        </div>
+                      </>
+                    )}
 
-                      {isReadyable && (
-                        <button
-                          type="button"
-                          onClick={() => handleMarkReady(order.id)}
-                          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground"
-                        >
-                          <span className="flex items-center gap-1">
-                            <Package className="size-3.5" />
-                            Mark Ready for Pickup
-                          </span>
-                        </button>
-                      )}
+                    {isReadyable && (
+                      <button
+                        type="button"
+                        onClick={() => handleMarkReady(order.id)}
+                        className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Package className="size-3.5" />
+                          Mark Ready for Pickup
+                        </span>
+                      </button>
+                    )}
 
-                      {order.status === "preparing" && (
-                        <button
-                          type="button"
-                          disabled
-                          className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-bold text-muted-foreground"
-                        >
-                          <span className="flex items-center gap-1">
-                            <Clock className="size-3.5 animate-pulse" />
-                            Looking for rider...
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    {order.status === "preparing" && (
+                      <button
+                        type="button"
+                        disabled
+                        className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-bold text-muted-foreground"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Clock className="size-3.5 animate-pulse" />
+                          Looking for rider...
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
