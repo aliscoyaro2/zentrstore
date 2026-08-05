@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Clock, CheckCircle2, XCircle, Package, AlertCircle } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, Package, AlertCircle, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
+import { OrderRouteMap } from "@/components/zentra/map/order-route-map";
 import {
   merchantAcceptOrder,
   merchantRejectOrder,
@@ -38,6 +39,7 @@ function MerchantOrdersPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [expandedMapId, setExpandedMapId] = useState<string | null>(null);
 
   // Get store ID
   const { data: store } = useQuery({
@@ -48,7 +50,7 @@ function MerchantOrdersPage() {
       
       const { data, error } = await supabase
         .from("merchants")
-        .select("id")
+        .select("id,lat,lng")
         .eq("owner_id", user.user.id)
         .maybeSingle();
       
@@ -58,6 +60,8 @@ function MerchantOrdersPage() {
   });
 
   const storeId = store?.id;
+  const storeLat = store?.lat;
+  const storeLng = store?.lng;
 
   // Fetch orders directly - REMOVED merchant_accepted_at column
   const orders = useQuery({
@@ -78,6 +82,14 @@ function MerchantOrdersPage() {
           profiles:customer_id (
             full_name,
             phone
+          ),
+          addresses (
+            lat,
+            lng
+          ),
+          riders (
+            current_lat,
+            current_lng
           ),
           order_items (
             id,
@@ -377,7 +389,43 @@ function MerchantOrdersPage() {
                         </span>
                       </button>
                     )}
+
+                    {["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer"].includes(order.status) &&
+                      storeLat != null &&
+                      storeLng != null &&
+                      order.addresses?.lat != null &&
+                      order.addresses?.lng != null && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedMapId(expandedMapId === order.id ? null : order.id)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-foreground"
+                        >
+                          <span className="flex items-center gap-1">
+                            <MapPin className="size-3.5" />
+                            {expandedMapId === order.id ? "Hide map" : "Show rider on map"}
+                          </span>
+                        </button>
+                      )}
                   </div>
+
+                  {expandedMapId === order.id &&
+                    storeLat != null &&
+                    storeLng != null &&
+                    order.addresses?.lat != null &&
+                    order.addresses?.lng != null && (
+                      <div className="mt-3">
+                        <OrderRouteMap
+                          merchant={{ lat: storeLat, lng: storeLng, label: "Your store" }}
+                          customer={{ lat: order.addresses.lat, lng: order.addresses.lng, label: "Delivery address" }}
+                          rider={
+                            order.riders?.current_lat != null && order.riders?.current_lng != null
+                              ? { lat: order.riders.current_lat, lng: order.riders.current_lng }
+                              : null
+                          }
+                          className="h-56 w-full"
+                        />
+                      </div>
+                    )}
                 </div>
               );
             })}
