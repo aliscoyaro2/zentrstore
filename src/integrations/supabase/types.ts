@@ -532,6 +532,44 @@ export type Database = {
           },
         ]
       }
+      order_events: {
+        Row: {
+          actor_id: string | null
+          actor_type: string
+          created_at: string
+          event_data: Json
+          event_type: string
+          id: string
+          order_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_type: string
+          created_at?: string
+          event_data?: Json
+          event_type: string
+          id?: string
+          order_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_type?: string
+          created_at?: string
+          event_data?: Json
+          event_type?: string
+          id?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string | null
@@ -672,12 +710,19 @@ export type Database = {
           customer_id: string | null
           delivered_at: string | null
           delivery_address_id: string | null
+          delivery_code: string | null
           delivery_fee_kobo: number
+          financial_status:
+            | Database["public"]["Enums"]["financial_status"]
+            | null
           id: string
           merchant_id: string | null
+          merchant_response_deadline: string | null
           paid_at: string | null
           payment_reference: string
+          pickup_code: string | null
           placed_at: string | null
+          prep_time_mins: number | null
           rider_assigned_at: string | null
           rider_id: string | null
           service_fee_kobo: number
@@ -692,12 +737,19 @@ export type Database = {
           customer_id?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
+          delivery_code?: string | null
           delivery_fee_kobo: number
+          financial_status?:
+            | Database["public"]["Enums"]["financial_status"]
+            | null
           id?: string
           merchant_id?: string | null
+          merchant_response_deadline?: string | null
           paid_at?: string | null
           payment_reference: string
+          pickup_code?: string | null
           placed_at?: string | null
+          prep_time_mins?: number | null
           rider_assigned_at?: string | null
           rider_id?: string | null
           service_fee_kobo: number
@@ -712,12 +764,19 @@ export type Database = {
           customer_id?: string | null
           delivered_at?: string | null
           delivery_address_id?: string | null
+          delivery_code?: string | null
           delivery_fee_kobo?: number
+          financial_status?:
+            | Database["public"]["Enums"]["financial_status"]
+            | null
           id?: string
           merchant_id?: string | null
+          merchant_response_deadline?: string | null
           paid_at?: string | null
           payment_reference?: string
+          pickup_code?: string | null
           placed_at?: string | null
+          prep_time_mins?: number | null
           rider_assigned_at?: string | null
           rider_id?: string | null
           service_fee_kobo?: number
@@ -1636,6 +1695,13 @@ export type Database = {
         | "rider_manager"
         | "marketing_manager"
       approval_status: "pending" | "approved" | "suspended"
+      financial_status:
+        | "payment_authorized"
+        | "payment_captured"
+        | "settlement_pending"
+        | "settled"
+        | "refund_pending"
+        | "refunded"
       incident_status: "open" | "in_progress" | "resolved"
       incident_type:
         | "breakdown"
@@ -1691,6 +1757,16 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "refunded"
+        | "created"
+        | "payment_pending"
+        | "merchant_pending"
+        | "merchant_rejected"
+        | "dispatch_scheduled"
+        | "dispatching"
+        | "rider_offered"
+        | "ready_for_pickup"
+        | "en_route_to_customer"
+        | "completed"
       payment_status:
         | "pending"
         | "authorized"
@@ -1842,6 +1918,14 @@ export const Constants = {
         "marketing_manager",
       ],
       approval_status: ["pending", "approved", "suspended"],
+      financial_status: [
+        "payment_authorized",
+        "payment_captured",
+        "settlement_pending",
+        "settled",
+        "refund_pending",
+        "refunded",
+      ],
       incident_status: ["open", "in_progress", "resolved"],
       incident_type: [
         "breakdown",
@@ -1896,6 +1980,16 @@ export const Constants = {
         "delivered",
         "cancelled",
         "refunded",
+        "created",
+        "payment_pending",
+        "merchant_pending",
+        "merchant_rejected",
+        "dispatch_scheduled",
+        "dispatching",
+        "rider_offered",
+        "ready_for_pickup",
+        "en_route_to_customer",
+        "completed",
       ],
       payment_status: [
         "pending",
