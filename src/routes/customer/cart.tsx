@@ -4,7 +4,7 @@ import { Screen, PageHeader, Panel, EmptyState, PaystackNote } from "@/component
 import { useCart } from "@/lib/cart";
 import { DELIVERY_FEE_KOBO, naira, serviceFeeKobo } from "@/lib/money";
 
-export const Route = createFileRoute("/cart")({
+export const Route = createFileRoute("/customer/cart")({
   head: () => ({
     meta: [
       { title: "Your basket — Zentra" },

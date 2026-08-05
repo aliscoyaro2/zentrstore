@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Screen, PageHeader, Panel } from "@/components/zentra/shell";
 
-export const Route = createFileRoute("/merchant/apply")({
+export const Route = createFileRoute("/merchant/apply/")({
   head: () => ({
     meta: [
       { title: "Sell on Zentra Maiduguri" },
