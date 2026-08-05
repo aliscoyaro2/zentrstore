@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Package, Clock, TrendingUp, Star } from "lucide-react";
+import { Package, Clock, TrendingUp, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { StatCard } from "@/components/admin/stat-card";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
 import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
-import { useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/merchant/")({
   head: () => ({
@@ -20,7 +19,6 @@ export const Route = createFileRoute("/merchant/")({
 });
 
 function MerchantDashboard() {
-  const { user } = useSession();
   const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
 
   if (permsLoading) {
@@ -34,7 +32,11 @@ function MerchantDashboard() {
   if (!storeId) {
     return (
       <MerchantLayout>
-        <p className="text-sm text-muted-foreground">You are not associated with any store.</p>
+        <div className="text-center py-10">
+          <AlertCircle className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-2 text-sm text-muted-foreground">No store associated with this account.</p>
+          <p className="text-xs text-muted-foreground mt-1">Please contact support or register a store.</p>
+        </div>
       </MerchantLayout>
     );
   }
@@ -87,7 +89,7 @@ function MerchantDashboard() {
     retry: 1,
   });
 
-  // ✅ FIXED: Pending count uses correct statuses
+  // Pending orders count
   const pendingOrders = useQuery({
     queryKey: ["merchant-pending-count", storeId],
     enabled: Boolean(storeId),
@@ -97,7 +99,7 @@ function MerchantDashboard() {
         .from("orders")
         .select("id", { count: "exact", head: true })
         .eq("merchant_id", storeId!)
-        .in("status", ["paid", "merchant_pending", "placed"]);
+        .in("status", ["placed", "paid", "merchant_pending"]);
       if (error) throw error;
       return data?.length || 0;
     },
@@ -139,8 +141,9 @@ function MerchantDashboard() {
     return (
       <MerchantLayout>
         <div className="text-center py-10">
-          <p className="text-destructive font-semibold">Could not load dashboard data</p>
-          <p className="text-sm text-muted-foreground mt-1">Please try refreshing the page.</p>
+          <AlertCircle className="mx-auto size-8 text-destructive" />
+          <p className="mt-2 text-sm text-destructive">Could not load dashboard data</p>
+          <p className="text-xs text-muted-foreground mt-1">Please try refreshing the page.</p>
         </div>
       </MerchantLayout>
     );
