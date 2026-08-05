@@ -52,7 +52,7 @@ const ACTIVE_DELIVERY_STATUSES = new Set([
   "rider_en_route_to_customer",
 ]);
 
-const ACCEPT_WINDOW_SECONDS = 60;
+const ACCEPT_WINDOW_SECONDS = 90;
 
 // Define the journey steps with visual states
 const JOURNEY_STEPS = [
@@ -177,6 +177,11 @@ function RiderDashboard() {
               address_text,
               lat,
               lng
+            ),
+            addresses (
+              formatted,
+              lat,
+              lng
             )
           )
         `)
@@ -284,6 +289,11 @@ function RiderDashboard() {
         {isOnline && availableOffers.length > 0 && !currentJob && (
           <AvailableJobsSection 
             offers={availableOffers} 
+            riderLocation={
+              rider.data?.current_lat != null && rider.data?.current_lng != null
+                ? { lat: rider.data.current_lat, lng: rider.data.current_lng }
+                : null
+            }
             onAccept={async (offerId) => {
               try {
                 const { acceptOffer } = await import("@/lib/dispatch.functions");
@@ -446,10 +456,12 @@ function OnlineToggle({
 
 function AvailableJobsSection({ 
   offers, 
+  riderLocation,
   onAccept, 
   onDecline 
 }: { 
   offers: any[]; 
+  riderLocation?: { lat: number; lng: number } | null;
   onAccept: (offerId: string) => void; 
   onDecline: (offerId: string) => void;
 }) {
@@ -458,46 +470,114 @@ function AvailableJobsSection({
       <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
         Available jobs ({offers.length})
       </h2>
-      <div className="space-y-2">
-        {offers.map((offer) => {
-          const order = offer.order;
-          const expiresIn = Math.max(0, Math.floor(
-            (new Date(offer.expires_at).getTime() - Date.now()) / 1000
-          ));
-          
-          return (
-            <div key={offer.id} className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-bold text-sm">{order.merchant?.business_name ?? "Store"}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{order.merchant?.address_text}</p>
-                  <p className="font-display font-bold text-primary mt-1">{naira(order.delivery_fee_kobo)}</p>
-                </div>
-                <span className="text-xs font-bold text-muted-foreground">
-                  {expiresIn}s left
-                </span>
-              </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => onAccept(offer.id)}
-                  className="flex-1 rounded-lg bg-primary py-2 text-sm font-bold text-primary-foreground"
-                >
-                  Accept
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecline(offer.id)}
-                  className="flex-1 rounded-lg border border-border py-2 text-sm font-bold text-muted-foreground"
-                >
-                  Decline
-                </button>
-              </div>
-            </div>
-          );
-        })}
+      <div className="space-y-3">
+        {offers.map((offer) => (
+          <OfferCard key={offer.id} offer={offer} riderLocation={riderLocation} onAccept={onAccept} onDecline={onDecline} />
+        ))}
       </div>
     </div>
+  );
+}
+
+// ── Single offer card: full route preview before the rider commits ──
+
+function OfferCard({
+  offer,
+  riderLocation,
+  onAccept,
+  onDecline,
+}: {
+  offer: any;
+  riderLocation?: { lat: number; lng: number } | null;
+  onAccept: (offerId: string) => void;
+  onDecline: (offerId: string) => void;
+}) {
+  const order = offer.order;
+  const merchant = order?.merchant;
+  const dropoff = order?.addresses;
+  const [expiresIn, setExpiresIn] = useState(() =>
+    Math.max(0, Math.floor((new Date(offer.expires_at).getTime() - Date.now()) / 1000))
+  );
+
+  useEffect(() => {
+    const tick = () =>
+      setExpiresIn(Math.max(0, Math.floor((new Date(offer.expires_at).getTime() - Date.now()) / 1000)));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [offer.expires_at]);
+
+  const hasMerchantLocation = merchant?.lat != null && merchant?.lng != null;
+  const hasDropoffLocation = dropoff?.lat != null && dropoff?.lng != null;
+
+  // Distance/ETA from the rider's current position to the pickup point —
+  // routed through the server-side MapProviderService, never called
+  // directly from the client.
+  const pickupTrip = useQuery({
+    queryKey: ["offer-pickup-trip", offer.id, riderLocation?.lat, riderLocation?.lng],
+    enabled: Boolean(riderLocation) && hasMerchantLocation,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { calculateDistance } = await import("@/lib/routing.functions");
+      return calculateDistance({ data: { from: riderLocation!, to: { lat: merchant.lat, lng: merchant.lng } } });
+    },
+  });
+
+  return (
+    <Panel className="overflow-hidden border-primary/30">
+      {hasMerchantLocation && hasDropoffLocation && (
+        <OrderRouteMap
+          merchant={{ lat: merchant.lat, lng: merchant.lng, label: merchant.business_name ?? "Pickup" }}
+          customer={{ lat: dropoff.lat, lng: dropoff.lng, label: dropoff.formatted ?? "Drop-off" }}
+          rider={riderLocation}
+          className="h-40 w-full rounded-none border-0"
+        />
+      )}
+
+      <div className="p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="font-bold text-sm">{merchant?.business_name ?? "Store"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{merchant?.address_text}</p>
+          </div>
+          <span className={cn("text-xs font-bold tabular-nums", expiresIn <= 15 ? "text-destructive" : "text-muted-foreground")}>
+            {expiresIn}s left
+          </span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {pickupTrip.data ? (
+            <>
+              <span>{(pickupTrip.data.distanceMeters / 1000).toFixed(1)} km to pickup</span>
+              <span>~{Math.round(pickupTrip.data.durationSeconds / 60)} min away</span>
+            </>
+          ) : riderLocation && hasMerchantLocation ? (
+            <span>Calculating distance…</span>
+          ) : null}
+        </div>
+
+        <p className="font-display font-bold text-primary mt-2 text-base">
+          Est. earnings: {naira(order?.delivery_fee_kobo ?? 0)}
+        </p>
+
+        <div className="flex gap-2 mt-3">
+          <button
+            type="button"
+            onClick={() => onAccept(offer.id)}
+            className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-bold text-primary-foreground"
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            onClick={() => onDecline(offer.id)}
+            className="flex-1 rounded-lg border border-border py-2.5 text-sm font-bold text-muted-foreground"
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
@@ -621,7 +701,7 @@ function IncomingJobCard({
               expired ? "bg-destructive text-destructive-foreground" : "bg-primary-foreground/20 text-primary-foreground"
             )}
           >
-            {expired ? "Time's up" : `0:${String(secondsLeft).padStart(2, "0")}`}
+            {expired ? "Time's up" : `${Math.floor((secondsLeft ?? 0) / 60)}:${String((secondsLeft ?? 0) % 60).padStart(2, "0")}`}
           </span>
         ) : null}
       </div>
@@ -673,7 +753,6 @@ function CurrentJobCard({
   
   const action = STEP_ACTIONS[currentStep];
   const [arrived, setArrived] = useState(false);
-  const [showMap, setShowMap] = useState(false);
 
   // Show arrival step if heading to store and not yet arrived
   const showArrivalStep = job.status === "rider_en_route_to_merchant" && !arrived;
@@ -758,28 +837,9 @@ function CurrentJobCard({
           )}
         </div>
 
-        {/* Map toggle + map */}
+        {/* Route map — always visible, follows the current delivery leg */}
         {job.merchants?.lat != null && job.merchants?.lng != null && job.addresses?.lat != null && job.addresses?.lng != null && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowMap((v) => !v)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-primary"
-            >
-              <MapPin className="size-3.5" />
-              {showMap ? "Hide map" : "Show map"}
-            </button>
-            {showMap && (
-              <div className="mt-2">
-                <OrderRouteMap
-                  merchant={{ lat: job.merchants.lat, lng: job.merchants.lng, label: job.merchants.business_name }}
-                  customer={{ lat: job.addresses.lat, lng: job.addresses.lng, label: "Drop-off" }}
-                  rider={riderLocation}
-                  className="h-56 w-full"
-                />
-              </div>
-            )}
-          </div>
+          <ActiveRouteMap job={job} riderLocation={riderLocation} />
         )}
 
         {/* Action Button */}
@@ -840,5 +900,58 @@ function CurrentJobCard({
         )}
       </div>
     </Panel>
+  );
+}
+
+// ── Active-delivery route map: always visible, follows the current leg ──
+// Before pickup: rider -> merchant. After pickup: merchant -> customer
+// (the rider's live position still shows on the map either way).
+function ActiveRouteMap({
+  job,
+  riderLocation,
+}: {
+  job: any;
+  riderLocation?: { lat: number; lng: number } | null;
+}) {
+  const isHeadingToCustomer = job.status === "picked_up" || job.status === "rider_en_route_to_customer";
+  const legLabel = isHeadingToCustomer ? "Route to customer" : "Route to store";
+
+  const routeFrom = isHeadingToCustomer
+    ? { lat: job.merchants.lat, lng: job.merchants.lng }
+    : riderLocation ?? { lat: job.merchants.lat, lng: job.merchants.lng };
+  const routeTo = isHeadingToCustomer
+    ? { lat: job.addresses.lat, lng: job.addresses.lng }
+    : { lat: job.merchants.lat, lng: job.merchants.lng };
+
+  const route = useQuery({
+    queryKey: ["active-job-route", job.id, job.status, routeFrom.lat, routeFrom.lng, routeTo.lat, routeTo.lng],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { calculateRoute } = await import("@/lib/routing.functions");
+      return calculateRoute({ data: { points: [routeFrom, routeTo] } });
+    },
+  });
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+          <MapPin className="size-3.5" />
+          {legLabel}
+        </p>
+        {route.data && (
+          <p className="text-xs text-muted-foreground">
+            {(route.data.distanceMeters / 1000).toFixed(1)} km · ~{Math.round(route.data.durationSeconds / 60)} min
+          </p>
+        )}
+      </div>
+      <OrderRouteMap
+        merchant={{ lat: job.merchants.lat, lng: job.merchants.lng, label: job.merchants.business_name ?? "Store" }}
+        customer={{ lat: job.addresses.lat, lng: job.addresses.lng, label: "Drop-off" }}
+        rider={riderLocation}
+        routePolyline={route.data?.polyline}
+        className="h-56 w-full"
+      />
+    </div>
   );
 }
