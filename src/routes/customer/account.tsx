@@ -140,7 +140,7 @@ function AccountPage() {
               </p>
             </div>
             <Link
-              to="/account/edit"
+              to="/customer/account/edit"
               className="text-sm font-medium text-primary hover:underline shrink-0"
             >
               Edit Profile
@@ -162,8 +162,8 @@ function AccountPage() {
 
         {/* ── Main Menu ── */}
         <div className="space-y-1">
-          <MenuItem to="/addresses" icon={<MapPin className="size-5" />} label="My Addresses" />
-          <MenuItem to="/orders" icon={<Package className="size-5" />} label="My Orders" />
+          <MenuItem to="/customer/addresses" icon={<MapPin className="size-5" />} label="My Addresses" />
+          <MenuItem to="/customer/orders" icon={<Package className="size-5" />} label="My Orders" />
           {/* Payment Methods & Favorites skipped */}
         </div>
 
@@ -198,7 +198,7 @@ function AccountPage() {
           </p>
           <div className="space-y-1">
             <MenuItem to="/help" icon={<Headphones className="size-5" />} label="Help Center" />
-            <MenuItem to="/settings" icon={<SettingsIcon className="size-5" />} label="Settings" />
+            <MenuItem to="/customer/settings" icon={<SettingsIcon className="size-5" />} label="Settings" />
             <MenuItem to="/about" icon={<Info className="size-5" />} label="About" />
           </div>
         </div>
@@ -222,13 +222,13 @@ function AccountPage() {
         <Link to="/" className="text-center text-sm text-muted-foreground hover:text-primary transition">
           Explore
         </Link>
-        <Link to="/orders" className="text-center text-sm text-muted-foreground hover:text-primary transition">
+        <Link to="/customer/orders" className="text-center text-sm text-muted-foreground hover:text-primary transition">
           Orders
         </Link>
-        <Link to="/cart" className="text-center text-sm text-muted-foreground hover:text-primary transition">
+        <Link to="/customer/cart" className="text-center text-sm text-muted-foreground hover:text-primary transition">
           Cart
         </Link>
-        <Link to="/account" className="text-center text-sm text-primary font-medium">
+        <Link to="/customer/account" className="text-center text-sm text-primary font-medium">
           Profile
         </Link>
       </div>
