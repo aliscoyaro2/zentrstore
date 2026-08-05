@@ -8,6 +8,7 @@ import { useRoleGuard } from "@/hooks/use-role-guard";
 import { useCart } from "@/lib/cart";
 import { DELIVERY_FEE_KOBO, naira, serviceFeeKobo } from "@/lib/money";
 import { initPaystackPayment } from "@/lib/orders.functions";
+import { logOrderEvent, updateOrderStatus } from "@/lib/order-events.functions";
 
 export const Route = createFileRoute("/customer/checkout")({
   head: () => ({
@@ -82,30 +83,82 @@ function CheckoutPage() {
     setAddressId(data.id);
   }
 
-  async function placeOrder() {
-    if (!user || !cart.merchantId || !addressId) return;
-    setBusy(true);
-    const reference = `ZEN-${Date.now().toString(36).toUpperCase()}`;
-    const { data: order, error } = await supabase
-      .from("orders")
-      .insert({
+// Updated placeOrder function
+async function placeOrder() {
+  if (!user || !cart.merchantId || !addressId) return;
+  setBusy(true);
+
+  const reference = `ZEN-${Date.now().toString(36).toUpperCase()}`;
+
+  // 1. Create the order with initial status
+  const { data: order, error } = await supabase
+    .from("orders")
+    .insert({
+      customer_id: user.id,
+      merchant_id: cart.merchantId,
+      delivery_address_id: addressId,
+      subtotal_kobo: subtotal,
+      delivery_fee_kobo: DELIVERY_FEE_KOBO,
+      service_fee_kobo: service,
+      total_kobo: total,
+      payment_reference: reference,
+      status: "created", // New status: CREATED
+      financial_status: "payment_authorized",
+      merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString(), // 60 seconds for merchant to respond
+    })
+    .select("id")
+    .single();
+
+  if (error || !order) {
+    setBusy(false);
+    toast.error("Could not place order", { description: error?.message });
+    return;
+  }
+
+  // 2. Log OrderCreated event
+  await logOrderEvent({
+    data: {
+      orderId: order.id,
+      eventType: "OrderCreated",
+      eventData: {
         customer_id: user.id,
         merchant_id: cart.merchantId,
-        delivery_address_id: addressId,
-        subtotal_kobo: subtotal,
-        delivery_fee_kobo: DELIVERY_FEE_KOBO,
-        service_fee_kobo: service,
         total_kobo: total,
-        payment_reference: reference,
-      })
-      .select("id")
-      .single();
+        item_count: cart.lines.length,
+      },
+      actorType: "customer",
+      actorId: user.id,
+    },
+  });
 
-    if (error || !order) {
-      setBusy(false);
-      toast.error("Could not place order", { description: error?.message });
-      return;
-    }
+  // 3. Save order items
+  const { error: itemsError } = await supabase.from("order_items").insert(
+    cart.lines.map((l) => ({
+      order_id: order.id,
+      product_id: l.productId,
+      quantity: l.quantity,
+      unit_price_kobo: l.priceKobo,
+    }))
+  );
+
+  if (itemsError) {
+    setBusy(false);
+    toast.error("Could not save your items", { description: itemsError.message });
+    return;
+  }
+
+  // 4. Payment flow (existing code)
+  try {
+    const { authorizationUrl } = await initPaystackPayment({ data: { orderId: order.id } });
+    clear();
+    window.location.href = authorizationUrl;
+  } catch (payErr) {
+    setBusy(false);
+    toast.error("Could not start payment", {
+      description: payErr instanceof Error ? payErr.message : "Please try again.",
+    });
+  }
+}
 
     const { error: itemsError } = await supabase.from("order_items").insert(
       cart.lines.map((l) => ({
