@@ -41,13 +41,13 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
       throw new Error(`Order is already ${order.status}, cannot accept.`);
     }
 
+    // ✅ REMOVED merchant_accepted_at (column doesn't exist)
     const { error: updateError } = await supabase
       .from("orders")
       .update({
         status: "merchant_accepted",
         prep_time_mins: data.prepTimeMins,
         merchant_notes: data.notes || null,
-        merchant_accepted_at: new Date().toISOString(),
       })
       .eq("id", data.orderId);
 
@@ -191,7 +191,6 @@ export const merchantMarkReady = createServerFn({ method: "POST" })
       .from("orders")
       .update({
         status: "preparing",
-        ready_for_pickup_at: new Date().toISOString(),
       })
       .eq("id", data.orderId);
 
@@ -253,7 +252,6 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
       return [];
     }
 
-    // ✅ Removed ready_for_pickup_at from select since column doesn't exist
     let query = supabase
       .from("orders")
       .select(`
@@ -263,7 +261,6 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
         placed_at,
         paid_at,
         prep_time_mins,
-        merchant_accepted_at,
         customer_id,
         profiles:customer_id (
           full_name,
@@ -294,14 +291,9 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
       query = query.in("status", [
         "merchant_accepted",
         "preparing",
-        "dispatch_scheduled",
-        "dispatching",
-        "rider_offered",
         "rider_assigned",
         "rider_en_route_to_merchant",
-        "ready_for_pickup",
         "picked_up",
-        "en_route_to_customer",
         "rider_en_route_to_customer"
       ]);
     } else if (data.status === "completed") {
