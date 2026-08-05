@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { Screen, PageHeader, Panel, PaystackNote } from "@/components/zentra/she
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { useCart } from "@/lib/cart";
 import { DELIVERY_FEE_KOBO, naira, serviceFeeKobo } from "@/lib/money";
+import { initPaystackPayment } from "@/lib/orders.functions";
 
 export const Route = createFileRoute("/customer/checkout")({
   head: () => ({
@@ -26,7 +27,6 @@ export const Route = createFileRoute("/customer/checkout")({
 const ZONE_POINT = { lat: 11.8311, lng: 13.151 };
 
 function CheckoutPage() {
-  const navigate = useNavigate();
   const { user, ready } = useRoleGuard("customer");
   const { cart, subtotal, count, clear } = useCart();
   const [addressId, setAddressId] = useState<string | null>(null);
@@ -115,14 +115,23 @@ function CheckoutPage() {
         unit_price_kobo: l.priceKobo,
       })),
     );
-    setBusy(false);
     if (itemsError) {
+      setBusy(false);
       toast.error("Could not save your items", { description: itemsError.message });
       return;
     }
 
-    clear();
-    navigate({ to: "/orders/$orderId", params: { orderId: order.id } });
+    try {
+      const { authorizationUrl } = await initPaystackPayment({ data: { orderId: order.id } });
+      clear();
+      // Full redirect to Paystack's hosted checkout — not an in-app route.
+      window.location.href = authorizationUrl;
+    } catch (payErr) {
+      setBusy(false);
+      toast.error("Could not start payment", {
+        description: payErr instanceof Error ? payErr.message : "Please try again.",
+      });
+    }
   }
 
   if (count === 0) {
