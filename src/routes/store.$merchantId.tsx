@@ -160,7 +160,7 @@ function StorePage() {
 
       {count > 0 && cart.merchantId === merchantId ? (
         <Link
-          to="/cart"
+          to="/customer/cart"
           className="fixed inset-x-0 bottom-[68px] z-40 mx-auto flex max-w-[30rem] items-center justify-between bg-primary px-6 py-4 font-semibold text-primary-foreground"
         >
           <span>
