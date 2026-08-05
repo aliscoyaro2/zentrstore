@@ -32,7 +32,7 @@ export const logOrderEvent = createServerFn({ method: "POST" })
       .insert({
         order_id: data.orderId,
         event_type: data.eventType,
-        event_data: data.eventData,
+        event_data: data.eventData as never,
         actor_type: data.actorType,
         actor_id: actorId,
       });
@@ -122,7 +122,7 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
     // Update the order
     const { error: updateError } = await supabase
       .from("orders")
-      .update(updatePayload)
+      .update(updatePayload as never)
       .eq("id", data.orderId);
 
     if (updateError) throw new Error(`Failed to update status: ${updateError.message}`);
