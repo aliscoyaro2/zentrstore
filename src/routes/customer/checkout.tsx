@@ -9,6 +9,8 @@ import { useCart } from "@/lib/cart";
 import { DELIVERY_FEE_KOBO, naira, serviceFeeKobo } from "@/lib/money";
 import { initPaystackPayment } from "@/lib/orders.functions";
 import { logOrderEvent } from "@/lib/order-events.functions";
+import { CustomerAddressPicker } from "@/components/zentra/map/customer-address-picker";
+import type { PickedLocation } from "@/components/zentra/map/location-picker";
 
 export const Route = createFileRoute("/customer/checkout")({
   head: () => ({
@@ -24,8 +26,6 @@ export const Route = createFileRoute("/customer/checkout")({
   }),
   component: CheckoutPage,
 });
-
-const ZONE_POINT = { lat: 11.8311, lng: 13.151 };
 
 // Generate a unique cart session ID that persists across page loads
 function getCartSessionId(): string {
@@ -43,7 +43,7 @@ function CheckoutPage() {
   const { cart, subtotal, count, clear } = useCart();
   const [addressId, setAddressId] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState("");
-  const [newText, setNewText] = useState("");
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [busy, setBusy] = useState(false);
   const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
   const [isResumingPayment, setIsResumingPayment] = useState(false);
@@ -118,16 +118,16 @@ function CheckoutPage() {
   }, [addresses.data, addressId]);
 
   async function saveAddress() {
-    if (!user || !newText.trim()) return;
+    if (!user || !pickedLocation) return;
     setBusy(true);
     const { data, error } = await supabase
       .from("addresses")
       .insert({
         user_id: user.id,
         label: newLabel.trim() || "Home",
-        formatted: newText.trim(),
-        lat: ZONE_POINT.lat,
-        lng: ZONE_POINT.lng,
+        formatted: pickedLocation.formatted,
+        lat: pickedLocation.lat,
+        lng: pickedLocation.lng,
         is_default: (addresses.data?.length ?? 0) === 0,
       })
       .select("id")
@@ -138,7 +138,7 @@ function CheckoutPage() {
       return;
     }
     setNewLabel("");
-    setNewText("");
+    setPickedLocation(null);
     await addresses.refetch();
     setAddressId(data.id);
   }
@@ -328,17 +328,11 @@ function CheckoutPage() {
                 placeholder="Label (Home, Shop, Office)"
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
               />
-              <textarea
-                value={newText}
-                onChange={(e) => setNewText(e.target.value)}
-                rows={2}
-                placeholder="e.g. No 14 Lagos Street, off Damboa Road, GRA Phase 1 — call at the black gate"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-              />
+              <CustomerAddressPicker value={pickedLocation} onChange={setPickedLocation} />
               <button
                 type="button"
                 onClick={saveAddress}
-                disabled={busy || !newText.trim()}
+                disabled={busy || !pickedLocation}
                 className="w-full rounded-lg border border-primary py-2 text-sm font-bold text-primary disabled:opacity-50"
               >
                 Save this address
