@@ -3,12 +3,13 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
- * Placeholder for the Paystack verification callback: until the live Paystack
- * keys are wired up, confirming payment marks the order paid so the rest of the
- * flow (merchant accept → rider → delivery) can run. Online payment only —
- * there is no cash-on-delivery path anywhere in the product.
+ * Starts a real Paystack transaction for an order that was just created at
+ * checkout. Returns the hosted Paystack payment page URL for the client to
+ * redirect to. The order is NOT marked paid here — only the Paystack webhook
+ * (routes/api/webhooks/paystack.ts) is trusted to do that, since it's the
+ * only source of truth that money actually moved.
  */
-export const confirmOrderPayment = createServerFn({ method: "POST" })
+export const initPaystackPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => z.object({ orderId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
@@ -24,28 +25,51 @@ export const confirmOrderPayment = createServerFn({ method: "POST" })
     if (!order || order.customer_id !== userId) {
       throw new Response("Not found", { status: 404 });
     }
-    if (order.status !== "placed") return { status: order.status };
+    if (order.status !== "placed") {
+      throw new Error(`Order is already ${order.status}, cannot start payment.`);
+    }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const paidAt = new Date().toISOString();
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileError) throw new Error(profileError.message);
+    if (!profile?.email) throw new Error("No email on file for this account.");
 
-    const { error: updateError } = await supabaseAdmin
-      .from("orders")
-      .update({ status: "paid", paid_at: paidAt })
-      .eq("id", order.id);
-    if (updateError) throw new Error(updateError.message);
+    const secretKey = process.env["PAYSTACK_SECRET_KEY"];
+    if (!secretKey) {
+      throw new Error("Missing PAYSTACK_SECRET_KEY. Set it in Supabase Edge Function secrets.");
+    }
 
-    await supabaseAdmin.from("payments").insert({
-      order_id: order.id,
-      customer_id: userId,
-      gateway: "paystack",
-      gateway_reference: order.payment_reference,
-      amount_kobo: order.total_kobo,
-      status: "paid",
-      payment_method: "card",
-      paid_at: paidAt,
-      verified_at: paidAt,
+    const siteUrl = process.env["SITE_URL"] ?? "https://zentrastore-pearl.vercel.app";
+
+    const initRes = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: profile.email,
+        amount: order.total_kobo,
+        currency: "NGN",
+        reference: order.payment_reference,
+        callback_url: `${siteUrl}/customer/payment-status/${order.id}`,
+        metadata: {
+          order_id: order.id,
+          customer_id: userId,
+        },
+      }),
     });
 
-    return { status: "paid" as const };
+    const initJson = await initRes.json();
+    if (!initRes.ok || !initJson?.status) {
+      throw new Error(initJson?.message ?? "Could not start Paystack transaction.");
+    }
+
+    return {
+      authorizationUrl: initJson.data.authorization_url as string,
+      reference: initJson.data.reference as string,
+    };
   });
