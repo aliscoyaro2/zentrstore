@@ -81,7 +81,7 @@ const STEP_ACTIONS: Record<JourneyStep, { label: string; nextStep: JourneyStep |
   heading_to_store: { label: "I've arrived at store", nextStep: "arrived_store" },
   arrived_store: { label: "Confirm pickup", nextStep: "picked_up" },
   picked_up: { label: "Head to customer", nextStep: "heading_to_customer" },
-  heading_to_customer: { label: "Mark delivered", nextStep: "delivered" },
+  heading_to_customer: { label: "Complete delivery", nextStep: "delivered" },
   delivered: { label: "Completed", nextStep: null },
 };
 
@@ -148,7 +148,9 @@ function RiderDashboard() {
           `
         )
         .eq("rider_id", user!.id)
-        .in("status", ["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer", "delivered"])
+        // 'delivered' = rider dropped it off, awaiting customer confirmation
+        // (or the 24h auto-complete safety net). 'completed' = paid out.
+        .in("status", ["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer", "delivered", "completed"])
         .order("placed_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -172,6 +174,7 @@ function RiderDashboard() {
             id,
             total_kobo,
             delivery_fee_kobo,
+            prep_time_mins,
             merchant:merchant_id (
               business_name,
               address_text,
@@ -180,6 +183,7 @@ function RiderDashboard() {
             ),
             addresses (
               formatted,
+              landmark,
               lat,
               lng
             )
@@ -234,17 +238,24 @@ function RiderDashboard() {
     );
   }
 
+  // "delivered" still counts as active — the rider has dropped it off but
+  // is waiting on the customer to confirm (or the 24h auto-complete) before
+  // it's truly done and paid out. Only "completed" leaves the active list.
   const allActive = (jobs.data ?? []).filter(
-    (j) => j.status !== "delivered" && j.status !== "cancelled"
+    (j) => j.status !== "completed" && j.status !== "cancelled"
   );
-  
+
   // Separate current job vs completed
   const [currentJob, ...queuedJobs] = allActive;
-  const completedJobs = (jobs.data ?? []).filter((j) => j.status === "delivered");
+  const completedJobs = (jobs.data ?? []).filter((j) => j.status === "completed");
 
   const isVerified = rider.data?.status === "approved";
   const isOnline = Boolean(rider.data?.is_online);
-  const hasActiveDelivery = Boolean(currentJob && ACTIVE_DELIVERY_STATUSES.has(currentJob.status));
+  // A rider can go offline once they've dropped off (delivered) — they're
+  // just waiting on the customer now, not actively en route.
+  const hasActiveDelivery = Boolean(
+    currentJob && ACTIVE_DELIVERY_STATUSES.has(currentJob.status) && currentJob.status !== "delivered",
+  );
   const isPendingAccept = currentJob?.status === "rider_assigned";
 
   // Get available offers (pending)
@@ -370,10 +381,12 @@ function RiderDashboard() {
 
   // Helper functions
   async function advanceOrder(orderId: string, status: string) {
-    const patch = status === "delivered"
-      ? { status: "delivered" as const, delivered_at: new Date().toISOString() }
-      : { status: status as "rider_en_route_to_merchant" | "picked_up" | "rider_en_route_to_customer" };
-    
+    // delivered_at is now stamped server-side (trg_mark_order_delivered),
+    // and rider payout only fires once the customer confirms and the order
+    // reaches 'completed' — see update_rider_balance(). This just moves the
+    // status forward.
+    const patch = { status: status as "rider_en_route_to_merchant" | "picked_up" | "rider_en_route_to_customer" | "delivered" };
+
     const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
     if (error) {
       toast.error("Update failed", { description: error.message });
@@ -554,7 +567,18 @@ function OfferCard({
           ) : riderLocation && hasMerchantLocation ? (
             <span>Calculating distance…</span>
           ) : null}
+          {order?.prep_time_mins != null && <span>~{order.prep_time_mins} min prep</span>}
         </div>
+
+        {dropoff?.formatted && (
+          <div className="mt-2.5 border-t border-border pt-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Drop-off</p>
+            <p className="mt-0.5 text-xs text-foreground">{dropoff.formatted}</p>
+            {dropoff.landmark && (
+              <p className="mt-0.5 text-xs text-muted-foreground">Landmark: {dropoff.landmark}</p>
+            )}
+          </div>
+        )}
 
         <p className="font-display font-bold text-primary mt-2 text-base">
           Est. earnings: {naira(order?.delivery_fee_kobo ?? 0)}
@@ -893,9 +917,15 @@ function CurrentJobCard({
             ) : null}
           </div>
         ) : (
-          <div className="flex items-center justify-center gap-2 rounded-xl bg-success/10 py-3 text-sm font-bold text-success">
-            <CheckCircle2 className="size-4" />
-            Delivered
+          <div className="space-y-2 rounded-xl bg-success/10 p-3">
+            <div className="flex items-center justify-center gap-2 text-sm font-bold text-success">
+              <CheckCircle2 className="size-4" />
+              Marked as delivered
+            </div>
+            <p className="text-center text-xs text-muted-foreground">
+              Waiting for the customer to confirm. You're free to go offline or take the next job —
+              you'll still get paid once they confirm, or automatically after 24 hours.
+            </p>
           </div>
         )}
       </div>
