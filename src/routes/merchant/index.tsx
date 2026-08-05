@@ -1,31 +1,56 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Package, Clock, TrendingUp } from "lucide-react";
+import { Package, Clock, TrendingUp, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { StatCard } from "@/components/admin/stat-card";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
 import { useMerchantPermissions } from "@/hooks/use-merchant-permissions";
+import { useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/merchant/")({
   head: () => ({
     meta: [
       { title: "Merchant Dashboard – Zentra" },
+      { name: "description", content: "Manage your store, orders and products." },
     ],
   }),
   component: MerchantDashboard,
 });
 
 function MerchantDashboard() {
+  const { user } = useSession();
   const { storeId, permissions, isLoading: permsLoading } = useMerchantPermissions();
 
-  // All hooks must run unconditionally, on every render, in the same
-  // order — never place a hook call after an early `return`. We gate
-  // each query itself with `enabled` and gate what we *render* below.
+  if (permsLoading) {
+    return (
+      <MerchantLayout>
+        <div className="animate-pulse p-4">Loading...</div>
+      </MerchantLayout>
+    );
+  }
+
+  if (!storeId) {
+    return (
+      <MerchantLayout>
+        <p className="text-sm text-muted-foreground">You are not associated with any store.</p>
+      </MerchantLayout>
+    );
+  }
+
+  const canViewDashboard = permissions?.dashboard === "full" || permissions?.dashboard === "view";
+  if (!canViewDashboard) {
+    return (
+      <MerchantLayout>
+        <p className="text-sm text-muted-foreground">You don't have permission to view the dashboard.</p>
+      </MerchantLayout>
+    );
+  }
+
+  // Fetch stats
   const stats = useQuery({
     queryKey: ["merchant-dashboard-stats", storeId],
-    enabled: Boolean(storeId),
     queryFn: async () => {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -53,9 +78,28 @@ function MerchantDashboard() {
         .filter(o => o.status !== "cancelled" && o.status !== "refunded")
         .reduce((sum, o) => sum + o.total_kobo, 0);
 
-      const pending = (ordersToday.data ?? []).filter(o => o.status === "paid" || o.status === "placed" || o.status === "merchant_pending").length;
+      const pending = (ordersToday.data ?? []).filter(o => 
+        o.status === "paid" || o.status === "merchant_pending" || o.status === "placed"
+      ).length;
 
       return { todayCount, totalOrders, revenue, pending };
+    },
+    retry: 1,
+  });
+
+  // ✅ FIXED: Pending count uses correct statuses
+  const pendingOrders = useQuery({
+    queryKey: ["merchant-pending-count", storeId],
+    enabled: Boolean(storeId),
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("merchant_id", storeId!)
+        .in("status", ["paid", "merchant_pending", "placed"]);
+      if (error) throw error;
+      return data?.length || 0;
     },
     retry: 1,
   });
@@ -63,7 +107,6 @@ function MerchantDashboard() {
   // Fetch recent orders (limit 5)
   const recentOrders = useQuery({
     queryKey: ["merchant-recent-orders", storeId],
-    enabled: Boolean(storeId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -77,57 +120,6 @@ function MerchantDashboard() {
     retry: 1,
   });
 
-  // Fetch pending order count (for badge)
-  const pendingOrders = useQuery({
-    queryKey: ["merchant-pending-count", storeId],
-    enabled: Boolean(storeId),
-    refetchInterval: 15000,
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("merchant_id", storeId!)
-        .in("status", ["paid", "merchant_pending", "placed"]);
-      if (error) throw error;
-      return count ?? 0;
-    },
-    retry: 1,
-  });
-
-  // Wait for permissions to load
-  if (permsLoading) {
-    return (
-      <MerchantLayout>
-        <div className="flex justify-center py-10">
-          <div className="animate-pulse text-muted-foreground">Loading dashboard...</div>
-        </div>
-      </MerchantLayout>
-    );
-  }
-
-  // No store ID
-  if (!storeId) {
-    return (
-      <MerchantLayout>
-        <div className="text-center py-10">
-          <p className="text-sm text-muted-foreground">No store associated with this account.</p>
-          <p className="text-xs text-muted-foreground mt-1">Please contact support or register a store.</p>
-        </div>
-      </MerchantLayout>
-    );
-  }
-
-  // Check permission
-  const canViewDashboard = permissions?.dashboard === "full" || permissions?.dashboard === "view";
-  if (!canViewDashboard) {
-    return (
-      <MerchantLayout>
-        <p className="text-sm text-muted-foreground">You don't have permission to view the dashboard.</p>
-      </MerchantLayout>
-    );
-  }
-
-  // Handle loading
   if (stats.isLoading || recentOrders.isLoading || pendingOrders.isLoading) {
     return (
       <MerchantLayout>
@@ -143,8 +135,7 @@ function MerchantDashboard() {
     );
   }
 
-  // Handle error
-  if (stats.error || recentOrders.error || pendingOrders.error) {
+  if (stats.error || recentOrders.error) {
     return (
       <MerchantLayout>
         <div className="text-center py-10">
@@ -157,25 +148,22 @@ function MerchantDashboard() {
 
   const data = stats.data;
   const orders = recentOrders.data ?? [];
-  const pendingCount = pendingOrders.data ?? 0;
 
   return (
     <MerchantLayout>
       <div className="space-y-6">
-        {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Today's orders" value={String(data?.todayCount ?? 0)} icon={Package} />
           <StatCard label="Revenue today" value={naira(data?.revenue ?? 0)} icon={TrendingUp} />
           <StatCard 
             label="Pending orders" 
-            value={String(pendingCount)} 
+            value={String(pendingOrders.data ?? 0)} 
             icon={Clock} 
-            tone={pendingCount > 0 ? "warning" : "default"} 
+            tone={pendingOrders.data > 0 ? "warning" : "default"} 
           />
           <StatCard label="Total orders" value={String(data?.totalOrders ?? 0)} icon={Package} />
         </div>
 
-        {/* Recent Orders */}
         <div>
           <h2 className="text-sm font-semibold mb-3">Recent orders</h2>
           <div className="space-y-2">
@@ -189,7 +177,7 @@ function MerchantDashboard() {
                       {o.order_items?.[0]?.products?.name
                         ? `${o.order_items[0].quantity}× ${o.order_items[0].products.name}`
                         : "Order"}
-                      {o.order_items?.length > 1 && ` +${o.order_items.length - 1} more`}
+                      {o.order_items?.length && o.order_items.length > 1 && ` +${o.order_items.length - 1} more`}
                     </p>
                     <p className="text-xs text-muted-foreground">{statusLabel(o.status)}</p>
                   </div>
@@ -198,16 +186,6 @@ function MerchantDashboard() {
               ))
             )}
           </div>
-        </div>
-
-        {/* Quick Action: View All Orders */}
-        <div className="flex justify-center">
-          <a
-            href="/merchant/orders"
-            className="text-sm font-semibold text-primary hover:underline"
-          >
-            View all orders →
-          </a>
         </div>
       </div>
     </MerchantLayout>
