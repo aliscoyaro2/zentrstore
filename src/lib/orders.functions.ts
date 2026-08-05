@@ -26,7 +26,7 @@ export const initPaystackPayment = createServerFn({ method: "POST" })
       throw new Response("Not found", { status: 404 });
     }
 
-    // ✅ FIX: Accept both 'created' and 'payment_pending' statuses
+    // ✅ FIXED: Accept both 'created' and 'payment_pending' statuses
     if (order.status !== "created" && order.status !== "payment_pending") {
       throw new Error(`Order is already ${order.status}, cannot start payment.`);
     }
