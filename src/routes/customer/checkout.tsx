@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, PaystackNote } from "@/components/zentra/shell";
@@ -27,6 +27,17 @@ export const Route = createFileRoute("/customer/checkout")({
 
 const ZONE_POINT = { lat: 11.8311, lng: 13.151 };
 
+// Generate a unique cart session ID that persists across page loads
+function getCartSessionId(): string {
+  if (typeof window === "undefined") return "";
+  let sessionId = sessionStorage.getItem("zentra_cart_session");
+  if (!sessionId) {
+    sessionId = `cart_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    sessionStorage.setItem("zentra_cart_session", sessionId);
+  }
+  return sessionId;
+}
+
 function CheckoutPage() {
   const { user, ready } = useRoleGuard("customer");
   const { cart, subtotal, count, clear } = useCart();
@@ -34,6 +45,11 @@ function CheckoutPage() {
   const [newLabel, setNewLabel] = useState("");
   const [newText, setNewText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [orderCreated, setOrderCreated] = useState(false);
+  const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
+  const isSubmitting = useRef(false);
+
+  const cartSessionId = getCartSessionId();
 
   const service = serviceFeeKobo(subtotal);
   const total = subtotal + DELIVERY_FEE_KOBO + service;
@@ -51,6 +67,40 @@ function CheckoutPage() {
       return data;
     },
   });
+
+  // Check if an order already exists for this cart session
+  const existingOrder = useQuery({
+    queryKey: ["checkout-existing-order", user?.id, cartSessionId],
+    enabled: Boolean(user) && count > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, status, payment_reference")
+        .eq("customer_id", user!.id)
+        .eq("cart_session_id", cartSessionId)
+        .in("status", ["created", "payment_pending", "paid", "merchant_pending"])
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // If there's an existing order in progress, prevent creating a new one
+  useEffect(() => {
+    if (existingOrder.data) {
+      setExistingOrderId(existingOrder.data.id);
+      setOrderCreated(true);
+      // If the order is already paid, redirect to tracking
+      if (existingOrder.data.status === "paid" || existingOrder.data.status === "merchant_pending") {
+        toast.info("You already have an order in progress", {
+          description: "Redirecting to order tracking...",
+        });
+        // Navigate to order tracking
+        window.location.href = `/customer/orders/${existingOrder.data.id}`;
+      }
+    }
+  }, [existingOrder.data]);
 
   useEffect(() => {
     const first = addresses.data?.[0];
@@ -84,83 +134,118 @@ function CheckoutPage() {
   }
 
   async function placeOrder() {
+    // Prevent multiple submissions
+    if (isSubmitting.current) return;
     if (!user || !cart.merchantId || !addressId) return;
+    
+    // Check if an order already exists for this session
+    if (existingOrder.data) {
+      toast.info("An order is already being processed for this cart", {
+        description: "Please wait or check your orders.",
+      });
+      return;
+    }
+
+    isSubmitting.current = true;
     setBusy(true);
 
     const reference = `ZEN-${Date.now().toString(36).toUpperCase()}`;
 
-    // 1. Create the order with initial status
-    const { data: order, error } = await supabase
-      .from("orders")
-      .insert({
-        customer_id: user.id,
-        merchant_id: cart.merchantId,
-        delivery_address_id: addressId,
-        subtotal_kobo: subtotal,
-        delivery_fee_kobo: DELIVERY_FEE_KOBO,
-        service_fee_kobo: service,
-        total_kobo: total,
-        payment_reference: reference,
-        status: "created",
-        financial_status: "payment_authorized",
-        merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (error || !order) {
-      setBusy(false);
-      toast.error("Could not place order", { description: error?.message });
-      return;
-    }
-
-    // 2. Log OrderCreated event
     try {
-      await logOrderEvent({
-        data: {
-          orderId: order.id,
-          eventType: "OrderCreated",
-          eventData: {
-            customer_id: user.id,
-            merchant_id: cart.merchantId,
-            total_kobo: total,
-            item_count: cart.lines.length,
+      // 1. Create the order with initial status
+      const { data: order, error } = await supabase
+        .from("orders")
+        .insert({
+          customer_id: user.id,
+          merchant_id: cart.merchantId,
+          delivery_address_id: addressId,
+          subtotal_kobo: subtotal,
+          delivery_fee_kobo: DELIVERY_FEE_KOBO,
+          service_fee_kobo: service,
+          total_kobo: total,
+          payment_reference: reference,
+          cart_session_id: cartSessionId,
+          status: "created",
+          financial_status: "payment_authorized",
+          merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (error || !order) {
+        toast.error("Could not place order", { description: error?.message });
+        isSubmitting.current = false;
+        setBusy(false);
+        return;
+      }
+
+      setOrderCreated(true);
+      setExistingOrderId(order.id);
+
+      // 2. Log OrderCreated event
+      try {
+        await logOrderEvent({
+          data: {
+            orderId: order.id,
+            eventType: "OrderCreated",
+            eventData: {
+              customer_id: user.id,
+              merchant_id: cart.merchantId,
+              total_kobo: total,
+              item_count: cart.lines.length,
+              cart_session_id: cartSessionId,
+            },
+            actorType: "customer",
+            actorId: user.id,
           },
-          actorType: "customer",
-          actorId: user.id,
-        },
+        });
+      } catch (eventErr) {
+        console.warn("Failed to log OrderCreated event:", eventErr);
+      }
+
+      // 3. Save order items
+      const { error: itemsError } = await supabase.from("order_items").insert(
+        cart.lines.map((l) => ({
+          order_id: order.id,
+          product_id: l.productId,
+          quantity: l.quantity,
+          unit_price_kobo: l.priceKobo,
+        }))
+      );
+
+      if (itemsError) {
+        toast.error("Could not save your items", { description: itemsError.message });
+        isSubmitting.current = false;
+        setBusy(false);
+        return;
+      }
+
+      // 4. Update order status to payment_pending
+      await supabase
+        .from("orders")
+        .update({ status: "payment_pending" })
+        .eq("id", order.id);
+
+      // 5. Payment flow
+      try {
+        const { authorizationUrl } = await initPaystackPayment({ data: { orderId: order.id } });
+        clear();
+        // Clear the cart session so a new order can be created later
+        sessionStorage.removeItem("zentra_cart_session");
+        window.location.href = authorizationUrl;
+      } catch (payErr) {
+        toast.error("Could not start payment", {
+          description: payErr instanceof Error ? payErr.message : "Please try again.",
+        });
+        isSubmitting.current = false;
+        setBusy(false);
+      }
+    } catch (err) {
+      toast.error("An error occurred", {
+        description: err instanceof Error ? err.message : "Please try again.",
       });
-    } catch (eventErr) {
-      console.warn("Failed to log OrderCreated event:", eventErr);
-      // Don't block the order flow if event logging fails
-    }
-
-    // 3. Save order items
-    const { error: itemsError } = await supabase.from("order_items").insert(
-      cart.lines.map((l) => ({
-        order_id: order.id,
-        product_id: l.productId,
-        quantity: l.quantity,
-        unit_price_kobo: l.priceKobo,
-      }))
-    );
-
-    if (itemsError) {
+      isSubmitting.current = false;
       setBusy(false);
-      toast.error("Could not save your items", { description: itemsError.message });
-      return;
-    }
-
-    // 4. Payment flow
-    try {
-      const { authorizationUrl } = await initPaystackPayment({ data: { orderId: order.id } });
-      clear();
-      window.location.href = authorizationUrl;
-    } catch (payErr) {
-      setBusy(false);
-      toast.error("Could not start payment", {
-        description: payErr instanceof Error ? payErr.message : "Please try again.",
-      });
     }
   }
 
@@ -243,19 +328,33 @@ function CheckoutPage() {
 
         <PaystackNote />
 
-        <button
-          type="button"
-          onClick={placeOrder}
-          disabled={busy || !addressId}
-          className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50"
-        >
-          {busy ? "Working..." : `Continue to payment · ${naira(total)}`}
-        </button>
-        {!addressId ? (
+        {existingOrderId ? (
+          <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
+            <p className="font-bold">Order in progress</p>
+            <p className="mt-1">You already have an order being processed. Please check your orders page.</p>
+            <Link
+              to="/customer/orders/$orderId"
+              params={{ orderId: existingOrderId }}
+              className="mt-2 inline-block font-semibold text-primary underline"
+            >
+              View your order
+            </Link>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={placeOrder}
+            disabled={busy || !addressId || orderCreated}
+            className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? "Processing..." : `Continue to payment · ${naira(total)}`}
+          </button>
+        )}
+        {!addressId && !existingOrderId && (
           <p className="text-center text-xs text-muted-foreground">
             Add a delivery address to continue.
           </p>
-        ) : null}
+        )}
       </div>
     </Screen>
   );
