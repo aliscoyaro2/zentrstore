@@ -169,7 +169,7 @@ function CustomerBrowse() {
             </div>
           </div>
           <Link
-            to="/account"
+            to="/customer/account"
             className="grid size-10 place-items-center rounded-full border border-border bg-secondary"
             aria-label="Your profile"
           >
@@ -288,7 +288,7 @@ function CustomerBrowse() {
 
       {count > 0 ? (
         <Link
-          to="/cart"
+          to="/customer/cart"
           className="fixed inset-x-0 bottom-[68px] z-40 mx-auto flex max-w-[30rem] items-center justify-between bg-primary px-4 py-3 text-primary-foreground"
         >
           <span className="text-xs font-bold uppercase tracking-wide">
