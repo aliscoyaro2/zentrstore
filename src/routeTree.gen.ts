@@ -43,9 +43,11 @@ import { Route as RiderPerformanceRouteImport } from './routes/rider/performance
 import { Route as RiderSupportRouteImport } from './routes/rider/support'
 import { Route as RiderWalletRouteImport } from './routes/rider/wallet'
 import { Route as StoreMerchantIdRouteImport } from './routes/store.$merchantId'
+import { Route as ApiWebhooksPaystackRouteImport } from './routes/api/webhooks/paystack'
 import { Route as CustomerAccountEditRouteImport } from './routes/customer/account.edit'
 import { Route as CustomerOrdersIndexRouteImport } from './routes/customer/orders.index'
 import { Route as CustomerOrdersOrderIdRouteImport } from './routes/customer/orders.$orderId'
+import { Route as CustomerPaymentStatusOrderIdRouteImport } from './routes/customer/payment-status.$orderId'
 import { Route as MerchantApplyIndexRouteImport } from './routes/merchant/apply/index'
 import { Route as MerchantApplyFormRouteImport } from './routes/merchant/apply/form'
 import { Route as MerchantApplySubmittedRouteImport } from './routes/merchant/apply/submitted'
@@ -229,6 +231,11 @@ const StoreMerchantIdRoute = StoreMerchantIdRouteImport.update({
   path: '/store/$merchantId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksPaystackRoute = ApiWebhooksPaystackRouteImport.update({
+  id: '/api/webhooks/paystack',
+  path: '/api/webhooks/paystack',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CustomerAccountEditRoute = CustomerAccountEditRouteImport.update({
   id: '/edit',
   path: '/edit',
@@ -244,6 +251,12 @@ const CustomerOrdersOrderIdRoute = CustomerOrdersOrderIdRouteImport.update({
   path: '/customer/orders/$orderId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomerPaymentStatusOrderIdRoute =
+  CustomerPaymentStatusOrderIdRouteImport.update({
+    id: '/customer/payment-status/$orderId',
+    path: '/customer/payment-status/$orderId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const MerchantApplyIndexRoute = MerchantApplyIndexRouteImport.update({
   id: '/merchant/apply/',
   path: '/merchant/apply/',
@@ -335,8 +348,10 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/rider/': typeof RiderIndexRoute
+  '/api/webhooks/paystack': typeof ApiWebhooksPaystackRoute
   '/customer/account/edit': typeof CustomerAccountEditRoute
   '/customer/orders/$orderId': typeof CustomerOrdersOrderIdRoute
+  '/customer/payment-status/$orderId': typeof CustomerPaymentStatusOrderIdRoute
   '/merchant/apply/form': typeof MerchantApplyFormRoute
   '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
   '/rider/apply/form': typeof RiderApplyFormRoute
@@ -385,8 +400,10 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
   '/rider': typeof RiderIndexRoute
+  '/api/webhooks/paystack': typeof ApiWebhooksPaystackRoute
   '/customer/account/edit': typeof CustomerAccountEditRoute
   '/customer/orders/$orderId': typeof CustomerOrdersOrderIdRoute
+  '/customer/payment-status/$orderId': typeof CustomerPaymentStatusOrderIdRoute
   '/merchant/apply/form': typeof MerchantApplyFormRoute
   '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
   '/rider/apply/form': typeof RiderApplyFormRoute
@@ -436,8 +453,10 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/rider/': typeof RiderIndexRoute
+  '/api/webhooks/paystack': typeof ApiWebhooksPaystackRoute
   '/customer/account/edit': typeof CustomerAccountEditRoute
   '/customer/orders/$orderId': typeof CustomerOrdersOrderIdRoute
+  '/customer/payment-status/$orderId': typeof CustomerPaymentStatusOrderIdRoute
   '/merchant/apply/form': typeof MerchantApplyFormRoute
   '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
   '/rider/apply/form': typeof RiderApplyFormRoute
@@ -488,8 +507,10 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/merchant/'
     | '/rider/'
+    | '/api/webhooks/paystack'
     | '/customer/account/edit'
     | '/customer/orders/$orderId'
+    | '/customer/payment-status/$orderId'
     | '/merchant/apply/form'
     | '/merchant/apply/submitted'
     | '/rider/apply/form'
@@ -538,8 +559,10 @@ export interface FileRouteTypes {
     | '/admin'
     | '/merchant'
     | '/rider'
+    | '/api/webhooks/paystack'
     | '/customer/account/edit'
     | '/customer/orders/$orderId'
+    | '/customer/payment-status/$orderId'
     | '/merchant/apply/form'
     | '/merchant/apply/submitted'
     | '/rider/apply/form'
@@ -588,8 +611,10 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/merchant/'
     | '/rider/'
+    | '/api/webhooks/paystack'
     | '/customer/account/edit'
     | '/customer/orders/$orderId'
+    | '/customer/payment-status/$orderId'
     | '/merchant/apply/form'
     | '/merchant/apply/submitted'
     | '/rider/apply/form'
@@ -639,7 +664,9 @@ export interface RootRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   MerchantIndexRoute: typeof MerchantIndexRoute
   RiderIndexRoute: typeof RiderIndexRoute
+  ApiWebhooksPaystackRoute: typeof ApiWebhooksPaystackRoute
   CustomerOrdersOrderIdRoute: typeof CustomerOrdersOrderIdRoute
+  CustomerPaymentStatusOrderIdRoute: typeof CustomerPaymentStatusOrderIdRoute
   MerchantApplyFormRoute: typeof MerchantApplyFormRoute
   MerchantApplySubmittedRoute: typeof MerchantApplySubmittedRoute
   RiderApplyFormRoute: typeof RiderApplyFormRoute
@@ -894,6 +921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoreMerchantIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/paystack': {
+      id: '/api/webhooks/paystack'
+      path: '/api/webhooks/paystack'
+      fullPath: '/api/webhooks/paystack'
+      preLoaderRoute: typeof ApiWebhooksPaystackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/customer/account/edit': {
       id: '/customer/account/edit'
       path: '/edit'
@@ -913,6 +947,13 @@ declare module '@tanstack/react-router' {
       path: '/customer/orders/$orderId'
       fullPath: '/customer/orders/$orderId'
       preLoaderRoute: typeof CustomerOrdersOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer/payment-status/$orderId': {
+      id: '/customer/payment-status/$orderId'
+      path: '/customer/payment-status/$orderId'
+      fullPath: '/customer/payment-status/$orderId'
+      preLoaderRoute: typeof CustomerPaymentStatusOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/merchant/apply/': {
@@ -1042,7 +1083,9 @@ const rootRouteChildren: RootRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   MerchantIndexRoute: MerchantIndexRoute,
   RiderIndexRoute: RiderIndexRoute,
+  ApiWebhooksPaystackRoute: ApiWebhooksPaystackRoute,
   CustomerOrdersOrderIdRoute: CustomerOrdersOrderIdRoute,
+  CustomerPaymentStatusOrderIdRoute: CustomerPaymentStatusOrderIdRoute,
   MerchantApplyFormRoute: MerchantApplyFormRoute,
   MerchantApplySubmittedRoute: MerchantApplySubmittedRoute,
   RiderApplyFormRoute: RiderApplyFormRoute,
@@ -1059,3 +1102,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
