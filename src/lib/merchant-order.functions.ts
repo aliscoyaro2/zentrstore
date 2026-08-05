@@ -5,7 +5,6 @@ import { logOrderEvent } from "./order-events.functions";
 
 /**
  * Merchant accepts an order
- * Sets prep time and moves order to "merchant_accepted" status
  */
 export const merchantAcceptOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -19,7 +18,6 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // 1. Verify this merchant owns this order
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select(`
@@ -42,11 +40,10 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
       throw new Response("Forbidden", { status: 403 });
     }
 
-    if (order.status !== "paid" && order.status !== "merchant_pending") {
+    if (order.status !== "paid" && order.status !== "merchant_pending" && order.status !== "placed") {
       throw new Error(`Order is already ${order.status}, cannot accept.`);
     }
 
-    // 2. Update the order
     const { error: updateError } = await supabase
       .from("orders")
       .update({
@@ -61,7 +58,6 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
       throw new Error(`Failed to accept order: ${updateError.message}`);
     }
 
-    // 3. Log the event
     await logOrderEvent({
       data: {
         orderId: data.orderId,
@@ -85,7 +81,6 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
 
 /**
  * Merchant rejects an order
- * Triggers refund flow
  */
 export const merchantRejectOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -120,7 +115,7 @@ export const merchantRejectOrder = createServerFn({ method: "POST" })
       throw new Response("Forbidden", { status: 403 });
     }
 
-    if (order.status !== "paid" && order.status !== "merchant_pending") {
+    if (order.status !== "paid" && order.status !== "merchant_pending" && order.status !== "placed") {
       throw new Error(`Order is already ${order.status}, cannot reject.`);
     }
 
@@ -160,7 +155,6 @@ export const merchantRejectOrder = createServerFn({ method: "POST" })
 
 /**
  * Merchant marks order as "ready for pickup"
- * This triggers the dispatch engine to find a rider
  */
 export const merchantMarkReady = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -198,8 +192,8 @@ export const merchantMarkReady = createServerFn({ method: "POST" })
       throw new Response("Forbidden", { status: 403 });
     }
 
-    if (order.status !== "merchant_accepted" && order.status !== "preparing") {
-      throw new Error(`Order is ${order.status}, cannot mark ready.`);
+    if (order.status !== "merchant_accepted") {
+      throw new Error(`Order is ${order.status}, cannot mark ready. Only merchant_accepted orders can be marked ready.`);
     }
 
     const { error: updateError } = await supabase
@@ -263,16 +257,24 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
+    // 1. Find the merchant's store
     const { data: merchant, error: merchantError } = await supabase
       .from("merchants")
       .select("id")
       .eq("owner_id", userId)
       .maybeSingle();
 
-    if (merchantError || !merchant) {
-      throw new Error("No store found for this account");
+    if (merchantError) {
+      console.error("[getMerchantOrders] Merchant lookup error:", merchantError);
+      throw new Error(`Failed to find store: ${merchantError.message}`);
     }
 
+    if (!merchant) {
+      console.warn("[getMerchantOrders] No store found for user:", userId);
+      return [];
+    }
+
+    // 2. Build the query
     let query = supabase
       .from("orders")
       .select(`
@@ -301,14 +303,14 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
       .order("placed_at", { ascending: false })
       .limit(data.limit);
 
-    // ✅ FIXED: Updated status filters to include all new statuses
+    // 3. Apply status filter
     if (data.status === "pending") {
       query = query.in("status", [
-        "created", 
-        "payment_pending", 
-        "paid", 
-        "merchant_pending",
-        "placed"
+        "placed",
+        "created",
+        "payment_pending",
+        "paid",
+        "merchant_pending"
       ]);
     } else if (data.status === "active") {
       query = query.in("status", [
@@ -322,13 +324,14 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
         "ready_for_pickup",
         "picked_up",
         "en_route_to_customer",
+        "rider_en_route_to_customer"
       ]);
     } else if (data.status === "completed") {
       query = query.in("status", ["delivered", "completed"]);
     } else if (data.status === "cancelled") {
       query = query.in("status", [
-        "cancelled", 
-        "refunded", 
+        "cancelled",
+        "refunded",
         "merchant_rejected"
       ]);
     }
@@ -336,14 +339,15 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
     const { data: orders, error } = await query;
 
     if (error) {
+      console.error("[getMerchantOrders] Query error:", error);
       throw new Error(`Failed to fetch orders: ${error.message}`);
     }
 
-    return orders;
+    return orders || [];
   });
 
 /**
- * Auto-reject orders where merchant didn't respond
+ * Auto-reject expired orders
  */
 export const autoRejectExpiredOrders = createServerFn({ method: "POST" })
   .handler(async () => {
