@@ -2,29 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 /**
  * Paystack webhook — the ONLY place an order is marked "paid".
- *
- * Do not trust the browser redirect after checkout to mean payment
- * succeeded (network drops, closed tabs, or a forged callback URL could
- * all fake that). Paystack calls this URL server-to-server whenever a
- * transaction event happens, so this is the actual source of truth.
- *
- * Steps, in order, and why each matters:
- *  1. Verify the `x-paystack-signature` header (HMAC-SHA512 of the RAW
- *     body, keyed with the secret key) before touching anything else —
- *     an unverified request could be anyone claiming to be Paystack.
- *  2. Only act on `charge.success`.
- *  3. Re-verify the transaction directly with Paystack's own
- *     `/transaction/verify` endpoint using the reference from the event —
- *     defense in depth against a leaked/forged signature, and it also
- *     confirms the amount actually paid matches what we expect.
- *  4. Update the order + insert a payments row using the service-role
- *     client, since RLS intentionally does not allow customers to update
- *     their own orders (this update must not be something a client can
- *     forge from the browser).
- *  5. Always return 200 quickly once verified, so Paystack doesn't retry
- *     unnecessarily; return non-200 only when verification genuinely fails.
  */
-
 async function verifySignature(rawBody: string, signature: string | null, secretKey: string) {
   if (!signature) return false;
   const key = await crypto.subtle.importKey(
@@ -39,7 +17,6 @@ async function verifySignature(rawBody: string, signature: string | null, secret
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Constant-time-ish comparison: lengths must match, then compare all bytes.
   if (computed.length !== signature.length) return false;
   let diff = 0;
   for (let i = 0; i < computed.length; i++) {
@@ -78,7 +55,6 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
         }
 
         if (event.event !== "charge.success") {
-          // Not an event we act on (e.g. charge.failed) — acknowledge and stop.
           return new Response("ok", { status: 200 });
         }
 
@@ -87,8 +63,7 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
           return new Response("Missing reference", { status: 400 });
         }
 
-        // Re-verify directly with Paystack rather than trusting the webhook
-        // payload's amount/status alone.
+        // Re-verify with Paystack
         const verifyRes = await fetch(
           `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
           { headers: { Authorization: `Bearer ${secretKey}` } },
@@ -116,7 +91,7 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
           return new Response("Order not found", { status: 404 });
         }
 
-        // Amount safety check: Paystack amount is in kobo already, matching our columns.
+        // Amount safety check
         if (verifyJson.data.amount !== order.total_kobo) {
           console.error(
             "[paystack-webhook] Amount mismatch",
@@ -127,24 +102,29 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
           return new Response("Amount mismatch", { status: 400 });
         }
 
-        // Idempotency: if already paid (Paystack retries webhooks), don't double-insert.
-        if (order.status !== "placed") {
+        // Idempotency: if already paid, don't double-process
+        if (order.status !== "placed" && order.status !== "created" && order.status !== "payment_pending") {
           return new Response("ok", { status: 200 });
         }
 
         const paidAt = new Date().toISOString();
 
+        // Update order status to "paid" (this will trigger merchant_pending via trigger)
         const { error: updateError } = await supabaseAdmin
           .from("orders")
-          .update({ status: "paid", paid_at: paidAt })
-          .eq("id", order.id)
-          .eq("status", "placed"); // extra guard against a race with a concurrent webhook retry
+          .update({ 
+            status: "paid", 
+            paid_at: paidAt,
+            financial_status: "payment_captured"
+          })
+          .eq("id", order.id);
 
         if (updateError) {
           console.error("[paystack-webhook] Order update failed", updateError.message);
           return new Response("Update failed", { status: 500 });
         }
 
+        // Insert payment record
         const { error: paymentError } = await supabaseAdmin.from("payments").insert({
           order_id: order.id,
           customer_id: order.customer_id,
@@ -161,9 +141,38 @@ export const Route = createFileRoute("/api/webhooks/paystack")({
         });
 
         if (paymentError) {
-          // Order is already marked paid at this point; log loudly so it can be
-          // reconciled manually rather than silently losing the payments row.
           console.error("[paystack-webhook] Payments insert failed", paymentError.message);
+        }
+
+        // Log PaymentSucceeded event
+        try {
+          await supabaseAdmin.from("order_events").insert({
+            order_id: order.id,
+            event_type: "PaymentSucceeded",
+            event_data: {
+              reference: reference,
+              amount: verifyJson.data.amount,
+              channel: verifyJson.data.channel,
+              transaction_id: verifyJson.data.id,
+            },
+            actor_type: "system",
+            actor_id: null,
+            created_at: paidAt,
+          });
+        } catch (eventErr) {
+          console.warn("[paystack-webhook] Failed to log PaymentSucceeded event:", eventErr);
+        }
+
+        // Update merchant_response_deadline to give merchant 60 seconds from now
+        try {
+          await supabaseAdmin
+            .from("orders")
+            .update({ 
+              merchant_response_deadline: new Date(Date.now() + 60 * 1000).toISOString() 
+            })
+            .eq("id", order.id);
+        } catch (deadlineErr) {
+          console.warn("[paystack-webhook] Failed to set merchant deadline:", deadlineErr);
         }
 
         return new Response("ok", { status: 200 });
