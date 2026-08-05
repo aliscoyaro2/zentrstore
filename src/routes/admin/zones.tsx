@@ -8,6 +8,8 @@ import { AdminLayout } from "@/components/admin/admin-layout";
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { naira } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { LocationPicker, type PickedLocation } from "@/components/zentra/map/location-picker";
+import { merchantIcon } from "@/components/zentra/map/map-icons";
 
 export const Route = createFileRoute("/admin/zones")({
   head: () => ({
@@ -41,6 +43,7 @@ function ZonesPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newCityId, setNewCityId] = useState("");
+  const [newLocation, setNewLocation] = useState<PickedLocation | null>(null);
 
   const zones = useQuery({
     queryKey: ["admin-zones"],
@@ -110,7 +113,12 @@ function ZonesPage() {
       toast.error("No city available", { description: "Add a city before creating a zone." });
       return;
     }
-    const { error } = await supabase.from("zones").insert({ name: newName.trim(), city_id: cityId });
+    const { error } = await supabase.from("zones").insert({
+      name: newName.trim(),
+      city_id: cityId,
+      lat: newLocation?.lat ?? null,
+      lng: newLocation?.lng ?? null,
+    });
     if (error) {
       toast.error("Could not create zone", { description: error.message });
       return;
@@ -118,6 +126,7 @@ function ZonesPage() {
     toast.success("Zone created");
     setNewName("");
     setNewCityId("");
+    setNewLocation(null);
     setCreating(false);
     queryClient.invalidateQueries({ queryKey: ["admin-zones"] });
   }
@@ -144,41 +153,57 @@ function ZonesPage() {
       </div>
 
       {creating ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4 shadow-sm">
-          <input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createZone()}
-            placeholder="Zone name, e.g. Gwange"
-            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-primary/20 focus:ring-2"
-          />
-          <select
-            value={newCityId || cities.data?.[0]?.id || ""}
-            onChange={(e) => setNewCityId(e.target.value)}
-            aria-label="City"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-primary/20 focus:ring-2"
-          >
-            {(cities.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={createZone} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setCreating(false);
-              setNewName("");
-              setNewCityId("");
-            }}
-            className="rounded-lg border border-border px-3 py-2 text-xs font-bold text-muted-foreground"
-          >
-            Cancel
-          </button>
+        <div className="mb-4 space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createZone()}
+              placeholder="Zone name, e.g. Gwange"
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-primary/20 focus:ring-2"
+            />
+            <select
+              value={newCityId || cities.data?.[0]?.id || ""}
+              onChange={(e) => setNewCityId(e.target.value)}
+              aria-label="City"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-primary/20 focus:ring-2"
+            >
+              {(cities.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs font-semibold text-muted-foreground">Zone centre point (optional)</p>
+            <LocationPicker
+              value={newLocation}
+              onChange={setNewLocation}
+              icon={merchantIcon}
+              placeholder="Search for the zone's centre point"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={createZone} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(false);
+                setNewName("");
+                setNewCityId("");
+                setNewLocation(null);
+              }}
+              className="rounded-lg border border-border px-3 py-2 text-xs font-bold text-muted-foreground"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -250,8 +275,8 @@ function ZonesPage() {
 
       <div className="mt-6 rounded-xl border border-dashed border-border bg-secondary/50 p-5 text-center">
         <p className="text-xs text-muted-foreground">
-          Map-based zone drawing needs a mapping provider (Google Maps or Mapbox) wired in with an API key —
-          for now zones are defined by name, a centre point and a radius rather than a hand-drawn boundary.
+          Zones are defined by a searchable centre point (via the map provider) and a radius. Hand-drawn
+          polygon boundaries aren't supported yet — that's a larger feature than a centre-point + radius model.
         </p>
       </div>
     </AdminLayout>
