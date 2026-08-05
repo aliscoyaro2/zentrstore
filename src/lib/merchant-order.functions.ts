@@ -3,9 +3,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { logOrderEvent } from "./order-events.functions";
 
-/**
- * Merchant accepts an order
- */
 export const merchantAcceptOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
@@ -79,9 +76,6 @@ export const merchantAcceptOrder = createServerFn({ method: "POST" })
     };
   });
 
-/**
- * Merchant rejects an order
- */
 export const merchantRejectOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
@@ -153,9 +147,6 @@ export const merchantRejectOrder = createServerFn({ method: "POST" })
     };
   });
 
-/**
- * Merchant marks order as "ready for pickup"
- */
 export const merchantMarkReady = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
@@ -221,25 +212,14 @@ export const merchantMarkReady = createServerFn({ method: "POST" })
       },
     });
 
-    // Dispatch will be triggered in Stage 3
-    try {
-      const { dispatchOrder } = await import("./dispatch.functions");
-      await dispatchOrder({ data: { orderId: data.orderId } });
-    } catch (dispatchErr) {
-      console.warn("[merchantMarkReady] Dispatch not available yet:", dispatchErr);
-    }
-
     return {
       success: true,
       status: "preparing",
       orderId: data.orderId,
-      message: "Order marked ready for pickup. Looking for riders...",
+      message: "Order marked ready for pickup.",
     };
   });
 
-/**
- * Get merchant orders with filtering
- */
 export const getMerchantOrders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
@@ -257,7 +237,6 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // 1. Find the merchant's store
     const { data: merchant, error: merchantError } = await supabase
       .from("merchants")
       .select("id")
@@ -274,7 +253,7 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
       return [];
     }
 
-    // 2. Build the query
+    // ✅ Removed ready_for_pickup_at from select since column doesn't exist
     let query = supabase
       .from("orders")
       .select(`
@@ -284,7 +263,7 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
         placed_at,
         paid_at,
         prep_time_mins,
-        ready_for_pickup_at,
+        merchant_accepted_at,
         customer_id,
         profiles:customer_id (
           full_name,
@@ -303,7 +282,6 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
       .order("placed_at", { ascending: false })
       .limit(data.limit);
 
-    // 3. Apply status filter
     if (data.status === "pending") {
       query = query.in("status", [
         "placed",
@@ -344,59 +322,4 @@ export const getMerchantOrders = createServerFn({ method: "POST" })
     }
 
     return orders || [];
-  });
-
-/**
- * Auto-reject expired orders
- */
-export const autoRejectExpiredOrders = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const now = new Date().toISOString();
-
-    const { data: orders, error } = await supabaseAdmin
-      .from("orders")
-      .select("id, merchant_id")
-      .eq("status", "merchant_pending")
-      .lt("merchant_response_deadline", now);
-
-    if (error) {
-      throw new Error(`Failed to find expired orders: ${error.message}`);
-    }
-
-    const results = [];
-    for (const order of orders || []) {
-      const { error: updateError } = await supabaseAdmin
-        .from("orders")
-        .update({
-          status: "merchant_rejected",
-          cancel_reason: "Merchant did not respond in time",
-          cancelled_at: now,
-          financial_status: "refund_pending",
-        })
-        .eq("id", order.id);
-
-      if (updateError) {
-        console.error(`Failed to auto-reject order ${order.id}:`, updateError);
-        results.push({ orderId: order.id, success: false, error: updateError.message });
-        continue;
-      }
-
-      await supabaseAdmin.from("order_events").insert({
-        order_id: order.id,
-        event_type: "MerchantRejected",
-        event_data: { reason: "Auto-rejected: merchant did not respond in time" },
-        actor_type: "system",
-        actor_id: null,
-        created_at: now,
-      });
-
-      results.push({ orderId: order.id, success: true });
-    }
-
-    return {
-      processed: results.length,
-      results,
-    };
   });
