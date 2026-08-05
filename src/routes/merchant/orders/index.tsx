@@ -41,7 +41,7 @@ function MerchantOrdersPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
 
-  // Fetch orders
+  // Fetch orders using the server function
   const orders = useQuery({
     queryKey: ["merchant-orders", storeId, activeTab],
     enabled: Boolean(storeId),
@@ -50,7 +50,7 @@ function MerchantOrdersPage() {
     retry: 1,
   });
 
-  // Permissions
+  // Handle loading state
   if (permsLoading) {
     return (
       <MerchantLayout>
@@ -79,12 +79,36 @@ function MerchantOrdersPage() {
     );
   }
 
+  // Handle error state
+  if (orders.error) {
+    return (
+      <MerchantLayout>
+        <div className="text-center py-10">
+          <AlertCircle className="mx-auto size-8 text-destructive" />
+          <p className="mt-2 text-sm text-destructive">Failed to load orders</p>
+          <p className="text-xs text-muted-foreground">
+            {orders.error instanceof Error ? orders.error.message : "Unknown error"}
+          </p>
+          <button
+            type="button"
+            onClick={() => orders.refetch()}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+          >
+            Retry
+          </button>
+        </div>
+      </MerchantLayout>
+    );
+  }
+
   const rows = orders.data ?? [];
 
-  // Count pending orders (for badge)
-  const pendingCount = rows.filter(o => 
+  // Count pending orders
+  const pendingCount = rows.filter(o =>
     o.status === "paid" || o.status === "merchant_pending" || o.status === "placed"
   ).length;
+
+  const canTakeAction = permissions?.orders === "full";
 
   async function handleAccept(orderId: string) {
     try {
@@ -134,8 +158,6 @@ function MerchantOrdersPage() {
     }
   }
 
-  const canTakeAction = permissions?.orders === "full";
-
   return (
     <MerchantLayout>
       <div className="space-y-4">
@@ -184,7 +206,6 @@ function MerchantOrdersPage() {
           <div className="space-y-3">
             {rows.map((order) => {
               const isPending = order.status === "paid" || order.status === "merchant_pending" || order.status === "placed";
-              const isActive = order.status === "merchant_accepted" || order.status === "preparing";
               const isReadyable = order.status === "merchant_accepted";
 
               return (
@@ -237,7 +258,6 @@ function MerchantOrdersPage() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       {isPending && (
                         <>
-                          {/* Accept with prep time selector */}
                           <div className="flex items-center gap-2">
                             <select
                               value={prepTime}
