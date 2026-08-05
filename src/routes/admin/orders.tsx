@@ -10,6 +10,9 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { useRoleGuard } from "@/hooks/use-role-guard";
 import { statusLabel, STATUS_COPY } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
+import { Marker, Popup } from "react-leaflet";
+import { LeafletMap } from "@/components/zentra/map/leaflet-map";
+import { merchantIcon, customerIcon, riderIcon } from "@/components/zentra/map/map-icons";
 
 export const Route = createFileRoute("/admin/orders")({
   head: () => ({
@@ -44,7 +47,8 @@ type OrderRow = {
   placed_at: string | null;
   payment_reference: string;
   cancel_reason: string | null;
-  merchants: { business_name: string } | null;
+  merchants: { business_name: string; lat: number | null; lng: number | null } | null;
+  addresses: { lat: number | null; lng: number | null } | null;
   profiles: { full_name: string | null; email: string | null } | null;
 };
 
@@ -63,7 +67,7 @@ function OrdersPage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,status,total_kobo,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,placed_at,payment_reference,cancel_reason,merchants(business_name),profiles:customer_id(full_name,email)",
+          "id,status,total_kobo,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,placed_at,payment_reference,cancel_reason,merchants(business_name,lat,lng),addresses(lat,lng),profiles:customer_id(full_name,email)",
         )
         .order("placed_at", { ascending: false })
         .limit(200);
@@ -78,7 +82,7 @@ function OrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("riders")
-        .select("id,vehicle_make,plate_number,is_online")
+        .select("id,vehicle_make,plate_number,is_online,current_lat,current_lng")
         .eq("status", "approved")
         .order("is_online", { ascending: false });
       if (error) throw error;
@@ -333,6 +337,42 @@ function OrdersPage() {
                 ))
               )}
             </div>
+
+            <p className="mt-6 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Dispatch map
+            </p>
+            {selected.merchants?.lat != null && selected.merchants?.lng != null ? (
+              <div className="mt-2">
+                <LeafletMap
+                  center={[selected.merchants.lat, selected.merchants.lng]}
+                  zoom={13}
+                  className="h-56 w-full"
+                >
+                  <Marker position={[selected.merchants.lat, selected.merchants.lng]} icon={merchantIcon}>
+                    <Popup>{selected.merchants.business_name}</Popup>
+                  </Marker>
+                  {selected.addresses?.lat != null && selected.addresses?.lng != null && (
+                    <Marker position={[selected.addresses.lat, selected.addresses.lng]} icon={customerIcon}>
+                      <Popup>Delivery address</Popup>
+                    </Marker>
+                  )}
+                  {(riders.data ?? [])
+                    .filter((r) => r.is_online && r.current_lat != null && r.current_lng != null)
+                    .map((r) => (
+                      <Marker key={r.id} position={[r.current_lat!, r.current_lng!]} icon={riderIcon}>
+                        <Popup>
+                          {r.vehicle_make ?? "Rider"} {r.plate_number ?? ""}
+                        </Popup>
+                      </Marker>
+                    ))}
+                </LeafletMap>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Amber = store, teal = delivery address, pulsing dots = online riders.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">Store location not set — map unavailable.</p>
+            )}
 
             <p className="mt-6 text-xs font-bold uppercase tracking-wide text-muted-foreground">
               Force assign rider
