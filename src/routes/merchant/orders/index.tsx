@@ -51,7 +51,7 @@ function MerchantOrdersPage() {
         .order("placed_at", { ascending: false });
 
       if (filter === "active") {
-        query = query.in("status", ACTIVE_STATUSES as unknown as string[]);
+        query = query.in("status", [...ACTIVE_STATUSES]);
       } else if (filter === "completed") {
         query = query.in("status", ["delivered", "cancelled", "refunded"]);
       }
