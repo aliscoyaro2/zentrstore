@@ -9,22 +9,30 @@ import { useRoleGuard } from "@/hooks/use-role-guard";
 import { cn } from "@/lib/utils";
 
 export function MerchantLayout({ children }: { children: ReactNode }) {
+  // ✅ ALL HOOKS CALLED FIRST, UNCONDITIONALLY
   const { user, loading } = useSession();
   const navigate = useNavigate();
+  const { ready } = useRoleGuard("merchant");
 
-  // Use role guard but catch errors gracefully
-  let roleGuardReady = false;
-  try {
-    const { ready } = useRoleGuard("merchant");
-    roleGuardReady = ready;
-  } catch {
-    // If role guard fails, redirect to login
-    navigate({ to: "/login" });
-    return null;
-  }
+  // ✅ Store query – always called, but gated with `enabled`
+  const store = useQuery({
+    queryKey: ["merchant-store", user?.id],
+    enabled: Boolean(user) && ready,
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("merchants")
+        .select("id, business_name, is_open_override")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    retry: 1,
+  });
 
-  // Show nothing while checking auth
-  if (loading || !roleGuardReady) {
+  // ✅ EARLY RETURNS AFTER ALL HOOKS
+  if (loading || !ready) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -32,32 +40,11 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // If no user, redirect
   if (!user) {
     navigate({ to: "/login" });
     return null;
   }
 
-  // Fetch the merchant/store for this owner
-  const store = useQuery({
-    queryKey: ["merchant-store", user.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("merchants")
-        .select("id, business_name, is_open_override")
-        .eq("owner_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error fetching store:", error);
-        throw error;
-      }
-      return data;
-    },
-    retry: 1,
-  });
-
-  // Handle loading state
   if (store.isLoading) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
@@ -66,7 +53,6 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Handle error state - show friendly message
   if (store.error) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center px-4">
@@ -86,7 +72,6 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // If no store found
   if (!store.data) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center px-4">
@@ -128,7 +113,7 @@ export function MerchantLayout({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <h1 className="truncate font-display text-lg font-extrabold">
-              {store.data.business_name ?? "My Store"}
+              {store.data.business_name}
             </h1>
             <p className="text-xs text-muted-foreground">Merchant dashboard</p>
           </div>
