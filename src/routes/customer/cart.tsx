@@ -81,7 +81,7 @@ function CartPage() {
             <PaystackNote />
 
             <Link
-              to="/checkout"
+              to="/customer/checkout"
               className="block rounded-xl bg-primary py-3.5 text-center font-bold text-primary-foreground"
             >
               Continue to checkout
