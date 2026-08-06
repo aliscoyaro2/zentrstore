@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAdminsRouteImport } from './routes/admin/admins'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
@@ -99,6 +100,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
@@ -381,6 +388,7 @@ export interface FileRoutesByTo {
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
@@ -435,6 +443,7 @@ export interface FileRoutesById {
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/admin/admins': typeof AdminAdminsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
@@ -490,6 +499,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/privacy'
     | '/register'
+    | '/terms'
     | '/admin/admins'
     | '/admin/analytics'
     | '/admin/audit-logs'
@@ -543,6 +553,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/privacy'
     | '/register'
+    | '/terms'
     | '/admin/admins'
     | '/admin/analytics'
     | '/admin/audit-logs'
@@ -596,6 +607,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/privacy'
     | '/register'
+    | '/terms'
     | '/admin/admins'
     | '/admin/analytics'
     | '/admin/audit-logs'
@@ -650,6 +662,7 @@ export interface RootRouteChildren {
   PartnersRoute: typeof PartnersRoute
   PrivacyRoute: typeof PrivacyRoute
   RegisterRoute: typeof RegisterRoute
+  TermsRoute: typeof TermsRoute
   AdminAdminsRoute: typeof AdminAdminsRoute
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminAuditLogsRoute: typeof AdminAuditLogsRoute
@@ -750,6 +763,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -1077,6 +1097,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersRoute: PartnersRoute,
   PrivacyRoute: PrivacyRoute,
   RegisterRoute: RegisterRoute,
+  TermsRoute: TermsRoute,
   AdminAdminsRoute: AdminAdminsRoute,
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminAuditLogsRoute: AdminAuditLogsRoute,
