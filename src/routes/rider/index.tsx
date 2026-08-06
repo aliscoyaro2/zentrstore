@@ -19,6 +19,8 @@ import {
   Navigation2,
   Check,
   Circle,
+  MessageCircle,
+  Phone,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
@@ -75,19 +77,26 @@ const STATUS_TO_STEP: Record<string, JourneyStep> = {
   delivered: "delivered",
 };
 
-// Map step to button actions
+// Map step to primary button — labels match the six-status rider workflow
+// spec exactly. "arrived_store" (ready_for_pickup) is a special case: its
+// primary action is the 4-digit pickup-code entry, not a plain button (see
+// PickupCodeEntry), so its nextStep here is unused but kept for the step
+// index lookup.
 const STEP_ACTIONS: Record<JourneyStep, { label: string; nextStep: JourneyStep | null }> = {
-  assigned: { label: "Head to store", nextStep: "heading_to_store" },
-  heading_to_store: { label: "I've arrived at store", nextStep: "arrived_store" },
-  arrived_store: { label: "Confirm pickup", nextStep: "picked_up" },
-  picked_up: { label: "Head to customer", nextStep: "heading_to_customer" },
-  heading_to_customer: { label: "Complete delivery", nextStep: "delivered" },
-  delivered: { label: "Completed", nextStep: null },
+  assigned: { label: "Heading to Store", nextStep: "heading_to_store" },
+  heading_to_store: { label: "Arrived at Store", nextStep: "arrived_store" },
+  arrived_store: { label: "Picked Up Order", nextStep: "picked_up" },
+  picked_up: { label: "Heading to Customer", nextStep: "heading_to_customer" },
+  heading_to_customer: { label: "Delivered", nextStep: "delivered" },
+  delivered: { label: "Complete Mission", nextStep: null },
 };
 
 function RiderDashboard() {
   const { user, ready } = useRoleGuard("rider");
   const queryClient = useQueryClient();
+
+  // Jobs the rider has tapped "Complete Mission" on — see allActive below.
+  const [dismissedJobIds, setDismissedJobIds] = useState<Set<string>>(new Set());
 
   const rider = useQuery({
     queryKey: ["rider", user?.id],
@@ -249,13 +258,20 @@ function RiderDashboard() {
   // "delivered" still counts as active — the rider has dropped it off but
   // is waiting on the customer to confirm (or the 24h auto-complete) before
   // it's truly done and paid out. Only "completed" leaves the active list.
+  // "Complete Mission" (step 6) doesn't change order.status — the backend
+  // requires the CUSTOMER to confirm delivery before payout, a rider can't
+  // self-confirm — it just clears the job off the rider's main slot so they
+  // can move on to their next job. dismissedJobIds tracks that locally.
   const allActive = (jobs.data ?? []).filter(
-    (j) => j.status !== "completed" && j.status !== "cancelled"
+    (j) => j.status !== "completed" && j.status !== "cancelled" && !dismissedJobIds.has(j.id)
   );
 
   // Separate current job vs completed
   const [currentJob, ...queuedJobs] = allActive;
   const completedJobs = (jobs.data ?? []).filter((j) => j.status === "completed");
+  const awaitingConfirmationJobs = (jobs.data ?? []).filter(
+    (j) => j.status === "delivered" && dismissedJobIds.has(j.id)
+  );
 
   const isVerified = rider.data?.status === "approved";
   const isOnline = Boolean(rider.data?.is_online);
@@ -353,6 +369,9 @@ function RiderDashboard() {
             onDecline={async () => {
               await declineOrder(currentJob.id);
             }}
+            onCompleteMission={(orderId) => {
+              setDismissedJobIds((prev) => new Set(prev).add(orderId));
+            }}
           />
         ) : isOnline ? (
           <WaitingState />
@@ -361,6 +380,13 @@ function RiderDashboard() {
             title="You're offline"
             body="Go online above to start receiving delivery jobs near you."
           />
+        )}
+
+        {/* Awaiting customer confirmation — rider tapped "Complete Mission"
+            on a delivered job; it's off their main slot but still unpaid
+            until the customer confirms (or the 24h auto-complete). */}
+        {awaitingConfirmationJobs.length > 0 && (
+          <AwaitingConfirmationSection jobs={awaitingConfirmationJobs} />
         )}
 
         {/* Queued Jobs */}
@@ -640,6 +666,33 @@ function QueuedJobsSection({ jobs }: { jobs: any[] }) {
   );
 }
 
+// Delivered jobs the rider has dismissed via "Complete Mission" — still
+// unpaid (waiting on customer confirmation or the 24h auto-complete), so
+// shown distinctly from the "Completed today" (paid out) section below.
+function AwaitingConfirmationSection({ jobs }: { jobs: any[] }) {
+  return (
+    <div>
+      <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+        Awaiting customer confirmation ({jobs.length})
+      </h2>
+      <div className="space-y-2">
+        {jobs.map((j) => (
+          <Panel key={j.id} className="flex items-center justify-between gap-3 p-3">
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-bold">{j.merchants?.business_name ?? "Store"}</p>
+                <p className="text-xs text-muted-foreground">Delivered — waiting on customer</p>
+              </div>
+            </div>
+            <span className="font-display font-bold text-muted-foreground">{naira(j.delivery_fee_kobo)}</span>
+          </Panel>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CompletedJobsSection({ jobs }: { jobs: any[] }) {
   return (
     <div>
@@ -695,11 +748,13 @@ function CurrentJobCard({
   riderLocation,
   onAdvance,
   onDecline,
+  onCompleteMission,
 }: {
   job: any;
   riderLocation?: { lat: number; lng: number } | null | undefined;
   onAdvance: (orderId: string, status: string) => void;
   onDecline: () => void;
+  onCompleteMission: (orderId: string) => void;
 }) {
   const currentStep = STATUS_TO_STEP[job.status] || "assigned";
   const stepIndex = JOURNEY_STEPS.findIndex(s => s.id === currentStep);
@@ -771,38 +826,27 @@ function CurrentJobCard({
         </div>
 
         {/* Store Info */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-base font-bold">{job.merchants?.business_name ?? "Store"}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {job.merchants?.address_text ?? "Address not provided"}
-            </p>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-xs font-bold text-primary">
-                {naira(job.delivery_fee_kobo)}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                • Order #{job.id.slice(0, 8)}
-              </span>
-            </div>
+        <div>
+          <p className="text-base font-bold">{job.merchants?.business_name ?? "Store"}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {job.merchants?.address_text ?? "Address not provided"}
+          </p>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs font-bold text-primary">
+              {naira(job.delivery_fee_kobo)}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              • Order #{job.id.slice(0, 8)}
+            </span>
           </div>
-          {job.merchants?.phone && (
-            <a 
-              href={`tel:${job.merchants.phone}`}
-              className="grid size-9 place-items-center rounded-full bg-primary/10 text-primary"
-            >
-              <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-            </a>
-          )}
         </div>
 
-        {/* Navigate in Google Maps — Zentra owns the workflow, Google Maps
-            owns turn-by-turn. Destination follows the current leg: the
-            store before pickup, the customer after. Opens directly on
-            coordinates, no copy/paste required of the rider. */}
-        <NavigateButton job={job} />
+        {/* Per-status action row — Navigate (Google Maps) / Call / Chat.
+            Which contact this points at (merchant vs customer) follows the
+            current leg, same as the primary button below. Chat is wired
+            but shows a "coming soon" placeholder for now — no chat data
+            model exists yet, that's a separate build. */}
+        <MissionActionsRow job={job} />
 
         {/* Route map — always visible, follows the current delivery leg */}
         {job.merchants?.lat != null && job.merchants?.lng != null && job.addresses?.lat != null && job.addresses?.lng != null && (
@@ -811,52 +855,61 @@ function CurrentJobCard({
 
         {/* Action Button — driven entirely off job.status, refetched every
             5s, so this can never get stuck the way a local flag could. */}
-        {!isDelivered ? (
-          <div>
-            {job.status === "ready_for_pickup" ? (
-              // Merchant has already confirmed ready (this status only
-              // exists once they have — it's also what generates the
-              // pickup code). Go straight to code entry, no waiting screen.
-              <PickupCodeEntry orderId={job.id} onVerified={() => onAdvance(job.id, "picked_up")} />
-            ) : isWaitingForMerchant ? (
-              <WaitingForMerchant orderId={job.id} />
-            ) : action && action.nextStep ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (action.nextStep === "delivered") {
-                    onAdvance(job.id, "delivered");
-                  } else if (action.nextStep === "heading_to_store") {
-                    onAdvance(job.id, "rider_en_route_to_merchant");
-                  } else if (action.nextStep === "heading_to_customer") {
-                    onAdvance(job.id, "rider_en_route_to_customer");
-                  } else if (action.nextStep === "picked_up") {
-                    onAdvance(job.id, "picked_up");
-                  }
-                }}
-                className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  {action.nextStep === "heading_to_store" && <Navigation className="size-4" />}
-                  {action.nextStep === "heading_to_customer" && <Navigation2 className="size-4" />}
-                  {action.nextStep === "delivered" && <CheckCircle2 className="size-4" />}
-                  {action.label}
-                </span>
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="space-y-2 rounded-xl bg-success/10 p-3">
-            <div className="flex items-center justify-center gap-2 text-sm font-bold text-success">
-              <CheckCircle2 className="size-4" />
-              Marked as delivered
+        {isDelivered ? (
+          <div className="space-y-2">
+            <div className="space-y-1 rounded-xl bg-success/10 p-3">
+              <div className="flex items-center justify-center gap-2 text-sm font-bold text-success">
+                <CheckCircle2 className="size-4" />
+                Delivered
+              </div>
+              <p className="text-center text-xs text-muted-foreground">
+                Waiting for the customer to confirm — you'll still get paid once they confirm,
+                or automatically after 24 hours.
+              </p>
             </div>
-            <p className="text-center text-xs text-muted-foreground">
-              Waiting for the customer to confirm. You're free to go offline or take the next job —
-              you'll still get paid once they confirm, or automatically after 24 hours.
-            </p>
+            {/* Complete Mission — does NOT change order.status (only the
+                customer's confirmation, or the 24h auto-complete, moves
+                this to 'completed' and triggers payout). This just clears
+                the job off the rider's main slot so they can take their
+                next one. */}
+            <button
+              type="button"
+              onClick={() => onCompleteMission(job.id)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+            >
+              <CheckCircle2 className="size-4" />
+              Complete Mission
+            </button>
           </div>
-        )}
+        ) : job.status === "ready_for_pickup" ? (
+          // Merchant has already confirmed ready (this status only
+          // exists once they have — it's also what generates the
+          // pickup code). Go straight to code entry, no waiting screen.
+          <PickupCodeEntry orderId={job.id} onVerified={() => onAdvance(job.id, "picked_up")} />
+        ) : isWaitingForMerchant ? (
+          <WaitingForMerchant orderId={job.id} />
+        ) : action && action.nextStep ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (action.nextStep === "heading_to_store") {
+                onAdvance(job.id, "rider_en_route_to_merchant");
+              } else if (action.nextStep === "heading_to_customer") {
+                onAdvance(job.id, "rider_en_route_to_customer");
+              } else if (action.nextStep === "delivered") {
+                onAdvance(job.id, "delivered");
+              }
+            }}
+            className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+          >
+            <span className="flex items-center justify-center gap-2">
+              {action.nextStep === "heading_to_store" && <Navigation className="size-4" />}
+              {action.nextStep === "heading_to_customer" && <Navigation2 className="size-4" />}
+              {action.nextStep === "delivered" && <CheckCircle2 className="size-4" />}
+              {action.label}
+            </span>
+          </button>
+        ) : null}
 
         {/* Back out — only available before pickup (matches rider_decline_order's allowed statuses) */}
         {!isDelivered && job.status !== "picked_up" && job.status !== "rider_en_route_to_customer" && (
@@ -958,30 +1011,63 @@ function PickupCodeEntry({ orderId, onVerified }: { orderId: string; onVerified:
   );
 }
 
-// ── Navigate button — launches Google Maps for turn-by-turn guidance ──
-// Zentra never builds its own turn-by-turn engine; this hands off to
-// Google Maps the moment the rider needs to actually drive somewhere.
-// Destination tracks the current leg, same rule ActiveRouteMap uses:
-// merchant before pickup, customer after.
-function NavigateButton({ job }: { job: any }) {
-  const isHeadingToCustomer = job.status === "picked_up" || job.status === "rider_en_route_to_customer";
+// ── Mission actions row — Navigate (Google Maps) / Call / Chat ──
+// Which contact this points at (merchant vs customer) follows the current
+// delivery leg: merchant for statuses 1-3 (assigned, heading to store, at
+// store), customer for statuses 4-5 (picked up, heading to customer). Not
+// shown once delivered (step 6) — there's nowhere left to navigate to and
+// no one left to call/chat mid-delivery.
+function MissionActionsRow({ job }: { job: any }) {
+  if (job.status === "delivered") return null;
 
-  const destination = isHeadingToCustomer
+  const isCustomerLeg = job.status === "picked_up" || job.status === "rider_en_route_to_customer";
+
+  const destination = isCustomerLeg
     ? { lat: job.addresses?.lat, lng: job.addresses?.lng, label: job.addresses?.landmark ?? "Drop-off" }
     : { lat: job.merchants?.lat, lng: job.merchants?.lng, label: job.merchants?.business_name ?? "Store" };
-
   const hasCoords = Number.isFinite(destination.lat) && Number.isFinite(destination.lng);
-  if (!hasCoords || job.status === "delivered") return null;
+
+  const contactName = isCustomerLeg ? (job.profiles?.full_name ?? "Customer") : (job.merchants?.business_name ?? "Merchant");
+  const contactPhone = isCustomerLeg ? job.profiles?.phone : job.merchants?.phone;
 
   return (
-    <button
-      type="button"
-      onClick={() => launchGoogleMapsNavigation(destination as { lat: number; lng: number; label?: string })}
-      className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-bold text-primary"
-    >
-      <Navigation className="size-3.5" strokeWidth={2.5} />
-      Navigate to {isHeadingToCustomer ? "customer" : "store"} in Google Maps
-    </button>
+    <div className="space-y-2">
+      {hasCoords && (
+        <button
+          type="button"
+          onClick={() => launchGoogleMapsNavigation(destination as { lat: number; lng: number; label?: string })}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-bold text-primary"
+        >
+          <Navigation className="size-3.5" strokeWidth={2.5} />
+          Open {isCustomerLeg ? "customer" : "merchant"} location in Google Maps
+        </button>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <a
+          href={contactPhone ? `tel:${contactPhone}` : undefined}
+          aria-disabled={!contactPhone}
+          className={cn(
+            "flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-2.5 text-xs font-bold text-foreground",
+            !contactPhone && "pointer-events-none opacity-50",
+          )}
+        >
+          <Phone className="size-3.5" strokeWidth={2.5} />
+          Call {isCustomerLeg ? "customer" : "merchant"}
+        </a>
+        <button
+          type="button"
+          onClick={() =>
+            toast(`Chat with ${contactName}`, {
+              description: "In-app chat is coming soon — use Call for now.",
+            })
+          }
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-2.5 text-xs font-bold text-foreground"
+        >
+          <MessageCircle className="size-3.5" strokeWidth={2.5} />
+          Chat {isCustomerLeg ? "customer" : "merchant"}
+        </button>
+      </div>
+    </div>
   );
 }
 
