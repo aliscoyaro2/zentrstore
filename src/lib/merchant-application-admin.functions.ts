@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getSiteUrl } from "@/lib/site-url";
+import { getOrInviteUser } from "@/lib/application-approval-auth";
 
 /**
  * Admin-only server functions for reviewing merchant applications. Every
@@ -111,20 +112,19 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
       .maybeSingle();
     const commissionPct = settings?.default_commission_pct ?? FALLBACK_COMMISSION_PCT;
 
-    // Create the real account now — this is the moment the applicant
-    // becomes a merchant. Supabase's invite email (through the project's
-    // Brevo SMTP) links to /auth/set-password, where they choose their own
-    // password before ever landing on the dashboard.
-    const { data: invited, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(app.email, {
-      data: { full_name: app.business_name, role: "merchant" },
-      redirectTo: `${getSiteUrl()}/auth/set-password`,
-    });
-
-    if (inviteError || !invited.user) {
-      throw new Error(inviteError?.message ?? "Could not create the merchant account.");
-    }
-
-    const ownerId = invited.user.id;
+    // Activate the real account now — this is the moment the applicant
+    // becomes a merchant. The auth user usually already exists (created
+    // silently during the application's OTP-verification step), so this
+    // reuses it rather than trying to invite a duplicate. Either way, the
+    // applicant gets a "set your password" email (Brevo SMTP) linking to
+    // /auth/set-password, where they choose their own password before ever
+    // landing on the dashboard.
+    const ownerId = await getOrInviteUser(
+      supabaseAdmin,
+      app.email,
+      { full_name: app.business_name, role: "merchant" },
+      `${getSiteUrl()}/auth/set-password`,
+    );
 
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
