@@ -1963,6 +1963,10 @@ export type Database = {
         Args: { p_leg: string; p_order_id: string }
         Returns: undefined
       }
+      merchant_confirm_ready_for_pickup: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
       report_delivery_problem: {
         Args: { p_order_id: string; p_reason: string }
         Returns: undefined
@@ -1970,6 +1974,10 @@ export type Database = {
       request_order_cancellation: {
         Args: { p_order_id: string; p_reason: string }
         Returns: string
+      }
+      verify_pickup_code: {
+        Args: { p_code: string; p_order_id: string }
+        Returns: undefined
       }
     }
     Enums: {
