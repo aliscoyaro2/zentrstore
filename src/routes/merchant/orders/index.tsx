@@ -1,20 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
-import { Clock, CheckCircle2, XCircle, Package, AlertCircle, MapPin } from "lucide-react";
+import { Clock, Package, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantLayout } from "@/components/zentra/merchant-layout";
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge";
 import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
-import { OrderRouteMap } from "@/components/zentra/map/order-route-map";
-import {
-  merchantAcceptOrder,
-  merchantRejectOrder,
-  merchantMarkReady,
-  merchantConfirmReadyForPickup,
-} from "@/lib/merchant-order.functions";
 
 export const Route = createFileRoute("/merchant/orders/")({
   head: () => ({
@@ -34,13 +26,7 @@ const STATUS_TABS = [
 type OrderStatusTab = typeof STATUS_TABS[number]["id"];
 
 function MerchantOrdersPage() {
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<OrderStatusTab>("pending");
-  const [prepTime, setPrepTime] = useState<number>(15);
-  const [rejectReason, setRejectReason] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [expandedMapId, setExpandedMapId] = useState<string | null>(null);
 
   // Get store ID
   const { data: store } = useQuery({
@@ -61,8 +47,6 @@ function MerchantOrdersPage() {
   });
 
   const storeId = store?.id;
-  const storeLat = store?.lat;
-  const storeLng = store?.lng;
 
   // Fetch orders directly - REMOVED merchant_accepted_at column
   const orders = useQuery({
@@ -189,66 +173,6 @@ function MerchantOrdersPage() {
     o.status === "paid" || o.status === "merchant_pending" || o.status === "placed"
   ).length;
 
-  async function handleAccept(orderId: string) {
-    try {
-      await merchantAcceptOrder({
-        data: {
-          orderId,
-          prepTimeMins: prepTime,
-        },
-      });
-      toast.success("Order accepted!");
-      setPrepTime(15);
-      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
-    } catch (err) {
-      toast.error("Could not accept", { description: err instanceof Error ? err.message : undefined });
-    }
-  }
-
-  async function handleReject(orderId: string) {
-    if (!rejectReason.trim()) {
-      toast.error("Please provide a reason for rejecting.");
-      return;
-    }
-    try {
-      await merchantRejectOrder({
-        data: {
-          orderId,
-          reason: rejectReason.trim(),
-        },
-      });
-      toast.success("Order rejected");
-      setRejectReason("");
-      setShowRejectModal(false);
-      setSelectedOrderId(null);
-      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
-    } catch (err) {
-      toast.error("Could not reject", { description: err instanceof Error ? err.message : undefined });
-    }
-  }
-
-  async function handleMarkReady(orderId: string) {
-    try {
-      await merchantMarkReady({ data: { orderId } });
-      toast.success("Order marked ready!");
-      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
-    } catch (err) {
-      toast.error("Could not mark ready", { description: err instanceof Error ? err.message : undefined });
-    }
-  }
-
-  async function handleConfirmReadyForPickup(orderId: string) {
-    try {
-      const result = await merchantConfirmReadyForPickup({ data: { orderId } });
-      toast.success(`Pickup code: ${result.pickupCode}`, {
-        description: "Read this to the rider when they arrive.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
-    } catch (err) {
-      toast.error("Could not confirm ready", { description: err instanceof Error ? err.message : undefined });
-    }
-  }
-
   return (
     <MerchantLayout>
       <div className="space-y-4">
@@ -291,12 +215,13 @@ function MerchantOrdersPage() {
           <div className="space-y-3">
             {rows.map((order) => {
               const isPending = order.status === "paid" || order.status === "merchant_pending" || order.status === "placed";
-              const isReadyable = order.status === "merchant_accepted";
 
               return (
-                <div
+                <Link
                   key={order.id}
-                  className={`rounded-xl border p-4 bg-card transition-shadow ${
+                  to="/merchant/orders/$orderId"
+                  params={{ orderId: order.id }}
+                  className={`block rounded-xl border p-4 bg-card transition-shadow active:scale-[0.99] ${
                     isPending ? "border-primary/30 bg-primary/5" : "border-border"
                   }`}
                 >
@@ -328,173 +253,26 @@ function MerchantOrdersPage() {
                         {order.placed_at ? new Date(order.placed_at).toLocaleString() : ""}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0 pl-2">
                       <p className="font-display font-bold">{naira(order.total_kobo)}</p>
                       {order.prep_time_mins && (
                         <p className="text-xs text-muted-foreground">
                           Prep: {order.prep_time_mins} min
                         </p>
                       )}
+                      {order.status === "ready_for_pickup" && order.pickup_code && (
+                        <p className="mt-1 font-display text-sm font-extrabold tracking-[0.2em] text-primary">
+                          {order.pickup_code}
+                        </p>
+                      )}
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {isPending && (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={prepTime}
-                            onChange={(e) => setPrepTime(Number(e.target.value))}
-                            className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
-                          >
-                            {[5, 10, 15, 20, 25, 30, 45, 60].map(m => (
-                              <option key={m} value={m}>{m} min</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => handleAccept(order.id)}
-                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
-                          >
-                            <span className="flex items-center gap-1">
-                              <CheckCircle2 className="size-3.5" />
-                              Accept
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedOrderId(order.id);
-                              setShowRejectModal(true);
-                            }}
-                            className="rounded-lg border border-destructive px-3 py-1.5 text-xs font-bold text-destructive"
-                          >
-                            <span className="flex items-center gap-1">
-                              <XCircle className="size-3.5" />
-                              Reject
-                            </span>
-                          </button>
-                        </div>
-                      </>
-                    )}
-
-                    {isReadyable && (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkReady(order.id)}
-                        className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-accent-foreground"
-                      >
-                        <span className="flex items-center gap-1">
-                          <Package className="size-3.5" />
-                          Mark Ready for Pickup
-                        </span>
-                      </button>
-                    )}
-
-                    {order.status === "preparing" && (
-                      <button
-                        type="button"
-                        onClick={() => handleConfirmReadyForPickup(order.id)}
-                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
-                      >
-                        <span className="flex items-center gap-1">
-                          <Package className="size-3.5" />
-                          Food is ready — get pickup code
-                        </span>
-                      </button>
-                    )}
-
-                    {order.status === "ready_for_pickup" && (
-                      <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Pickup code — read to rider
-                        </p>
-                        <p className="font-display text-lg font-extrabold tracking-[0.3em] text-primary">
-                          {order.pickup_code ?? "----"}
-                        </p>
-                      </div>
-                    )}
-
-                    {["rider_assigned", "rider_en_route_to_merchant", "ready_for_pickup", "picked_up", "rider_en_route_to_customer"].includes(order.status) &&
-                      storeLat != null &&
-                      storeLng != null &&
-                      order.addresses?.lat != null &&
-                      order.addresses?.lng != null && (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedMapId(expandedMapId === order.id ? null : order.id)}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-foreground"
-                        >
-                          <span className="flex items-center gap-1">
-                            <MapPin className="size-3.5" />
-                            {expandedMapId === order.id ? "Hide map" : "Show rider on map"}
-                          </span>
-                        </button>
-                      )}
-                  </div>
-
-                  {expandedMapId === order.id &&
-                    storeLat != null &&
-                    storeLng != null &&
-                    order.addresses?.lat != null &&
-                    order.addresses?.lng != null && (
-                      <div className="mt-3">
-                        <OrderRouteMap
-                          merchant={{ lat: storeLat, lng: storeLng, label: "Your store" }}
-                          customer={{ lat: order.addresses.lat, lng: order.addresses.lng, label: "Delivery address" }}
-                          rider={
-                            order.riders?.current_lat != null && order.riders?.current_lng != null
-                              ? { lat: order.riders.current_lat, lng: order.riders.current_lng }
-                              : null
-                          }
-                          className="h-56 w-full"
-                        />
-                      </div>
-                    )}
-                </div>
+                </Link>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowRejectModal(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-display text-lg font-bold">Reject Order</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Why are you rejecting this order?</p>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              rows={3}
-              placeholder="e.g. Item unavailable, store closed..."
-              className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectReason("");
-                  setSelectedOrderId(null);
-                }}
-                className="flex-1 rounded-lg border border-border py-2 text-sm font-bold text-muted-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => selectedOrderId && handleReject(selectedOrderId)}
-                className="flex-1 rounded-lg bg-destructive py-2 text-sm font-bold text-destructive-foreground"
-              >
-                Reject Order
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </MerchantLayout>
   );
 }
