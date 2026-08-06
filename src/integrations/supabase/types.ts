@@ -1952,6 +1952,7 @@ export type Database = {
         Args: { p_approve: boolean; p_note: string; p_request_id: string }
         Returns: undefined
       }
+      auto_complete_stale_deliveries: { Args: never; Returns: undefined }
       confirm_delivery: { Args: { p_order_id: string }; Returns: undefined }
       decline_order_offer: { Args: { p_offer_id: string }; Returns: undefined }
       dispatch_order: { Args: { p_order_id: string }; Returns: string }
