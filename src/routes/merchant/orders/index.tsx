@@ -69,7 +69,7 @@ function MerchantOrdersPage() {
             full_name,
             phone
           ),
-          addresses (
+          addresses:delivery_address_id (
             lat,
             lng
           ),
