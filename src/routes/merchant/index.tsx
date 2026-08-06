@@ -171,7 +171,7 @@ function MerchantDashboard() {
             label="Pending orders"
             value={String(pendingOrders.data ?? 0)}
             icon={Clock}
-            tone={pendingOrders.data > 0 ? "warning" : "default"}
+            tone={(pendingOrders.data ?? 0) > 0 ? "warning" : "default"}
           />
           <StatCard label="Total orders" value={String(data?.totalOrders ?? 0)} icon={Package} />
         </div>

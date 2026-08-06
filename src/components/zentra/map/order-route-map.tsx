@@ -6,9 +6,9 @@ interface OrderRouteMapProps {
   merchant: { lat: number; lng: number; label?: string };
   customer: { lat: number; lng: number; label?: string };
   /** Rider's current position, if assigned and en route. Omit before assignment. */
-  rider?: { lat: number; lng: number } | null;
+  rider?: { lat: number; lng: number } | null | undefined;
   /** Route geometry from calculateRoute(), e.g. rider -> merchant or merchant -> customer depending on delivery stage. */
-  routePolyline?: [number, number][];
+  routePolyline?: [number, number][] | undefined;
   className?: string;
 }
 

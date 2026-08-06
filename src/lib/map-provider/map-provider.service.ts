@@ -30,7 +30,7 @@ let cachedProvider: GraphHopperProvider | null = null;
 /** Lazily constructs the provider so a missing API key only throws when mapping is actually used, not at module load / import time. */
 function getProvider(): GraphHopperProvider {
   if (!cachedProvider) {
-    cachedProvider = new GraphHopperProvider(process.env.GRAPHHOPPER_API_KEY ?? "");
+    cachedProvider = new GraphHopperProvider(process.env['GRAPHHOPPER_API_KEY'] ?? "");
   }
   return cachedProvider;
 }

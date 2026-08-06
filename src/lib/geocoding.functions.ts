@@ -18,7 +18,7 @@ export const searchAddress = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const results = await MapProviderService.geocode(data.query, { near: data.near, limit: data.limit });
+    const results = await MapProviderService.geocode(data.query, { ...(data.near ? { near: data.near } : {}), limit: data.limit });
     return { results };
   });
 

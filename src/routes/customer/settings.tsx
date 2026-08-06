@@ -105,7 +105,7 @@ function SettingsPage() {
       <div className="space-y-4 px-4 py-6 pb-24">
         {/* ── Profile Quick Link ── */}
         <Link
-          to="/account/edit"
+          to="/customer/account/edit"
           className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-4 hover:bg-muted/50 transition"
         >
           <span className="flex items-center gap-3">

@@ -359,7 +359,7 @@ function CheckoutPage() {
             <p className="mt-1">This order has already been paid for.</p>
             <Link
               to="/customer/orders/$orderId"
-              params={{ orderId: existingOrder.data.id }}
+              params={{ orderId: existingOrder.data!.id }}
               className="mt-2 inline-block font-semibold text-green-700 underline"
             >
               View your order
