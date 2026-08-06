@@ -475,8 +475,8 @@ function MerchantApplyForm() {
             <Panel className="space-y-4 p-4">
               <p className="font-display text-lg font-extrabold">Verification</p>
               <PhotoCaptureField
-                label="Owner's means of ID"
-                hint="A clear photo of a valid government-issued ID."
+                label="Owner's means of ID (optional for now)"
+                hint="A clear photo of a valid government-issued ID. You can add this later before going live."
                 value={ownerIdUrl}
                 onCapture={async (file) => {
                   if (!applicationToken) return;
