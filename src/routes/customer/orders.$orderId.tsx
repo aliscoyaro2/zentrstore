@@ -1,299 +1,445 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Package, MapPin, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
-import { StatusRail, statusLabel } from "@/components/zentra/status-rail";
-import { useSession } from "@/hooks/use-session";
+import { MerchantLayout } from "@/components/zentra/merchant-layout";
+import { AdminStatusBadge } from "@/components/admin/admin-status-badge";
+import { statusLabel } from "@/components/zentra/status-rail";
 import { naira } from "@/lib/money";
 import { OrderRouteMap } from "@/components/zentra/map/order-route-map";
+import {
+  merchantAcceptOrder,
+  merchantRejectOrder,
+  merchantMarkReady,
+  merchantConfirmReadyForPickup,
+} from "@/lib/merchant-order.functions";
 
-const RIDER_IN_FLIGHT_STATUSES = ["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer"];
+const MAP_STATUSES = [
+  "rider_assigned",
+  "rider_en_route_to_merchant",
+  "ready_for_pickup",
+  "picked_up",
+  "rider_en_route_to_customer",
+];
 
-// Statuses that should keep polling: rider in flight, or waiting on the
-// customer to confirm (delivered) since that can also change from the
-// 24h auto-complete safety net running server-side.
-const POLLING_STATUSES = [...RIDER_IN_FLIGHT_STATUSES, "delivered"];
-
-export const Route = createFileRoute("/customer/orders/$orderId")({
+export const Route = createFileRoute("/merchant/orders/$orderId")({
   head: () => ({
-    meta: [
-      { title: "Order details — Zentra" },
-      {
-        name: "description",
-        content: "Track this Zentra order from payment to the rider knocking on your gate.",
-      },
-    ],
+    meta: [{ title: "Order details — Merchant" }],
   }),
-  component: OrderDetailPage,
+  component: MerchantOrderDetailPage,
 });
 
-function OrderDetailPage() {
+function MerchantOrderDetailPage() {
   const { orderId } = Route.useParams();
-  const { user, loading } = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [loading, user, navigate]);
+  const [prepTime, setPrepTime] = useState<number>(15);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
-  const order = useQuery({
-    queryKey: ["order-detail", orderId, user?.id],
-    enabled: Boolean(user),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status && POLLING_STATUSES.includes(status) ? 8000 : false;
-    },
+  const { data: store } = useQuery({
+    queryKey: ["merchant-store-id"],
     queryFn: async () => {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return null;
       const { data, error } = await supabase
-        .from("orders")
-        .select(
-          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason,customer_report_reason,merchants(business_name,address_text,phone,lat,lng),addresses(formatted,lat,lng),riders(current_lat,current_lng),order_items(id,quantity,unit_price_kobo,products(name))",
-        )
-        .eq("id", orderId)
-        .eq("customer_id", user!.id)
+        .from("merchants")
+        .select("id,lat,lng")
+        .eq("owner_id", user.user.id)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
 
-  return (
-    <Screen>
-      <PageHeader
-        title={order.data ? `Order · ${statusLabel(order.data.status)}` : "Order"}
-        subtitle={order.data?.merchants?.business_name ?? "Maiduguri delivery"}
-      />
-      <div className="space-y-4 px-4 py-6">
-        {order.isLoading ? (
-          <div className="h-40 animate-pulse rounded-2xl bg-secondary" />
-        ) : !order.data ? (
-          <EmptyState title="Order not found" body="This order doesn't exist or isn't yours." />
-        ) : (
-          <>
-            <Panel className="p-4">
-              <StatusRail status={order.data.status} />
-              {order.data.status === "cancelled" && order.data.cancel_reason && (
-                <p className="mt-4 text-xs text-destructive">{order.data.cancel_reason}</p>
-              )}
-            </Panel>
-
-            {order.data.status === "delivered" && (
-              <DeliveryConfirmationPanel
-                orderId={order.data.id}
-                reportedReason={order.data.customer_report_reason}
-                onDone={() => {
-                  queryClient.invalidateQueries({ queryKey: ["order-detail", orderId, user?.id] });
-                }}
-              />
-            )}
-
-            {order.data.merchants?.lat != null &&
-              order.data.merchants?.lng != null &&
-              order.data.addresses?.lat != null &&
-              order.data.addresses?.lng != null && (
-                <Panel className="overflow-hidden p-0">
-                  <OrderRouteMap
-                    merchant={{
-                      lat: order.data.merchants.lat,
-                      lng: order.data.merchants.lng,
-                      label: order.data.merchants.business_name ?? "Store",
-                    }}
-                    customer={{
-                      lat: order.data.addresses.lat,
-                      lng: order.data.addresses.lng,
-                      label: order.data.addresses.formatted ?? "Delivery address",
-                    }}
-                    rider={
-                      RIDER_IN_FLIGHT_STATUSES.includes(order.data.status) &&
-                      order.data.riders?.current_lat != null &&
-                      order.data.riders?.current_lng != null
-                        ? { lat: order.data.riders.current_lat, lng: order.data.riders.current_lng }
-                        : null
-                    }
-                    className="h-56 w-full rounded-none border-0"
-                  />
-                </Panel>
-              )}
-
-            <Panel className="space-y-3 p-4">
-              <p className="text-sm font-semibold">Items</p>
-              <div className="space-y-2">
-                {(order.data.order_items ?? []).map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {item.quantity}× {item.products?.name ?? "Item"}
-                    </span>
-                    <span>{naira(item.unit_price_kobo * item.quantity)}</span>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-
-            <Panel className="space-y-2 p-4">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Subtotal</span>
-                <span>{naira(order.data.subtotal_kobo)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Delivery fee</span>
-                <span>{naira(order.data.delivery_fee_kobo)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Service fee</span>
-                <span>{naira(order.data.service_fee_kobo)}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-border pt-2 font-display font-extrabold">
-                <span>Total</span>
-                <span>{naira(order.data.total_kobo)}</span>
-              </div>
-            </Panel>
-
-            {order.data.merchants?.address_text && (
-              <Panel className="p-4 text-sm text-muted-foreground">
-                <p className="font-semibold text-foreground">Store</p>
-                <p className="mt-1">{order.data.merchants.address_text}</p>
-                {order.data.merchants.phone && <p className="mt-1">{order.data.merchants.phone}</p>}
-              </Panel>
-            )}
-          </>
-        )}
-      </div>
-    </Screen>
-  );
-}
-
-// ── Delivery confirmation panel ──
-// Shown only while status === "delivered": the rider says they dropped it
-// off, but the order isn't "completed" (and the rider isn't paid) until the
-// customer confirms or the 24h auto-complete safety net fires server-side.
-function DeliveryConfirmationPanel({
-  orderId,
-  reportedReason,
-  onDone,
-}: {
-  orderId: string;
-  reportedReason: string | null;
-  onDone: () => void;
-}) {
-  const [reporting, setReporting] = useState(false);
-  const [reason, setReason] = useState("");
-
-  const confirm = useMutation({
-    mutationFn: async () => {
-      const { confirmDelivery } = await import("@/lib/delivery-confirmation.functions");
-      return confirmDelivery({ data: { orderId } });
-    },
-    onSuccess: () => {
-      toast.success("Delivery confirmed", { description: "Thanks — enjoy!" });
-      onDone();
-    },
-    onError: (err) => {
-      toast.error("Could not confirm", { description: err instanceof Error ? err.message : undefined });
+  const order = useQuery({
+    queryKey: ["merchant-order-detail", orderId],
+    enabled: Boolean(orderId),
+    refetchInterval: 8000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          id,
+          status,
+          total_kobo,
+          subtotal_kobo,
+          delivery_fee_kobo,
+          service_fee_kobo,
+          placed_at,
+          prep_time_mins,
+          pickup_code,
+          cancel_reason,
+          customer_id,
+          profiles:customer_id ( full_name, phone ),
+          addresses ( formatted, lat, lng ),
+          riders ( current_lat, current_lng ),
+          order_items ( id, quantity, unit_price_kobo, products ( name ) )
+        `)
+        .eq("id", orderId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
     },
   });
 
-  const report = useMutation({
-    mutationFn: async () => {
-      const { reportDeliveryProblem } = await import("@/lib/delivery-confirmation.functions");
-      return reportDeliveryProblem({ data: { orderId, reason: reason.trim() } });
-    },
-    onSuccess: () => {
-      toast.success("Thanks — we've logged this", {
-        description: "Our support team will follow up with you.",
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: ["merchant-order-detail", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["merchant-orders"] });
+  }
+
+  async function handleAccept() {
+    try {
+      await merchantAcceptOrder({ data: { orderId, prepTimeMins: prepTime } });
+      toast.success("Order accepted!");
+      invalidateAll();
+    } catch (err) {
+      toast.error("Could not accept", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  async function handleReject() {
+    if (!rejectReason.trim()) {
+      toast.error("Please provide a reason for rejecting.");
+      return;
+    }
+    try {
+      await merchantRejectOrder({ data: { orderId, reason: rejectReason.trim() } });
+      toast.success("Order rejected");
+      setShowRejectModal(false);
+      setRejectReason("");
+      invalidateAll();
+    } catch (err) {
+      toast.error("Could not reject", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  async function handleMarkReady() {
+    try {
+      await merchantMarkReady({ data: { orderId } });
+      toast.success("Order marked ready!");
+      invalidateAll();
+    } catch (err) {
+      toast.error("Could not mark ready", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  async function handleConfirmReadyForPickup() {
+    try {
+      const result = await merchantConfirmReadyForPickup({ data: { orderId } });
+      toast.success(`Pickup code: ${result.pickupCode}`, {
+        description: "Read this to the rider when they arrive.",
       });
-      setReporting(false);
-      onDone();
-    },
-    onError: (err) => {
-      toast.error("Could not send report", { description: err instanceof Error ? err.message : undefined });
-    },
-  });
-
-  if (reportedReason) {
-    return (
-      <Panel className="flex items-start gap-3 border-info/30 bg-info-soft p-4">
-        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-info" strokeWidth={2.2} />
-        <div>
-          <p className="text-sm font-bold text-info">Problem reported</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            We've logged your report and support will reach out. This order will still auto-complete if
-            we don't hear otherwise.
-          </p>
-        </div>
-      </Panel>
-    );
+      invalidateAll();
+    } catch (err) {
+      toast.error("Could not confirm ready", { description: err instanceof Error ? err.message : undefined });
+    }
   }
 
   return (
-    <Panel className="overflow-hidden border-primary/30">
-      <div className="border-b border-border bg-primary/5 px-4 py-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
-          Your rider marked this delivered
+    <MerchantLayout>
+      <div className="-mx-4 -mt-5 mb-4 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/merchant/orders" })}
+          className="grid size-8 shrink-0 place-items-center rounded-full border border-border"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
+            {order.data ? `#${order.data.id.slice(0, 8)}` : "Order"}
+          </p>
+          {order.data && (
+            <p className="text-xs text-muted-foreground">{statusLabel(order.data.status)}</p>
+          )}
+        </div>
+      </div>
+
+      {order.isLoading ? (
+        <div className="space-y-3">
+          <div className="h-32 animate-pulse rounded-xl bg-secondary" />
+          <div className="h-24 animate-pulse rounded-xl bg-secondary" />
+        </div>
+      ) : !order.data ? (
+        <div className="py-12 text-center">
+          <Package className="mx-auto size-10 text-muted-foreground/30" />
+          <p className="mt-3 font-medium">Order not found</p>
+          <p className="text-sm text-muted-foreground">
+            It may not exist, or it doesn't belong to your store.
+          </p>
+        </div>
+      ) : (
+        <OrderDetailBody
+          order={order.data}
+          storeLat={store?.lat ?? null}
+          storeLng={store?.lng ?? null}
+          prepTime={prepTime}
+          setPrepTime={setPrepTime}
+          onAccept={handleAccept}
+          onOpenReject={() => setShowRejectModal(true)}
+          onMarkReady={handleMarkReady}
+          onConfirmReady={handleConfirmReadyForPickup}
+        />
+      )}
+
+      {showRejectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowRejectModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-lg font-bold">Reject Order</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Why are you rejecting this order?</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Item unavailable, store closed..."
+              className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                }}
+                className="flex-1 rounded-lg border border-border py-2 text-sm font-bold text-muted-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReject}
+                className="flex-1 rounded-lg bg-destructive py-2 text-sm font-bold text-destructive-foreground"
+              >
+                Reject Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </MerchantLayout>
+  );
+}
+
+type OrderDetailData = NonNullable<ReturnType<typeof useOrderDataShape>>;
+// Type helper only — never called. Keeps the body component's prop type
+// tied to the query's inferred shape without duplicating the select string.
+function useOrderDataShape() {
+  return null as unknown as {
+    id: string;
+    status: string;
+    total_kobo: number;
+    subtotal_kobo: number;
+    delivery_fee_kobo: number;
+    service_fee_kobo: number;
+    placed_at: string | null;
+    prep_time_mins: number | null;
+    pickup_code: string | null;
+    cancel_reason: string | null;
+    customer_id: string;
+    profiles: { full_name: string | null; phone: string | null } | null;
+    addresses: { formatted: string | null; lat: number | null; lng: number | null } | null;
+    riders: { current_lat: number | null; current_lng: number | null } | null;
+    order_items: { id: string; quantity: number; unit_price_kobo: number; products: { name: string | null } | null }[] | null;
+  };
+}
+
+function OrderDetailBody({
+  order,
+  storeLat,
+  storeLng,
+  prepTime,
+  setPrepTime,
+  onAccept,
+  onOpenReject,
+  onMarkReady,
+  onConfirmReady,
+}: {
+  order: OrderDetailData;
+  storeLat: number | null;
+  storeLng: number | null;
+  prepTime: number;
+  setPrepTime: (n: number) => void;
+  onAccept: () => void;
+  onOpenReject: () => void;
+  onMarkReady: () => void;
+  onConfirmReady: () => void;
+}) {
+  const isPending = order.status === "paid" || order.status === "merchant_pending" || order.status === "placed";
+  const isReadyable = order.status === "merchant_accepted";
+  const canConfirmReady = order.status === "preparing";
+  const showMap =
+    MAP_STATUSES.includes(order.status) &&
+    storeLat != null &&
+    storeLng != null &&
+    order.addresses?.lat != null &&
+    order.addresses?.lng != null;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between">
+          <AdminStatusBadge status={order.status} label={statusLabel(order.status)} />
+          <p className="font-display text-lg font-extrabold">{naira(order.total_kobo)}</p>
+        </div>
+        {order.status === "cancelled" && order.cancel_reason && (
+          <p className="mt-3 text-xs text-destructive">{order.cancel_reason}</p>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          {order.placed_at ? new Date(order.placed_at).toLocaleString() : ""}
         </p>
       </div>
-      <div className="space-y-3 p-4">
-        {!reporting ? (
-          <>
-            <p className="text-sm text-muted-foreground">Did everything arrive okay?</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setReporting(true)}
-                className="flex-1 rounded-xl border border-border bg-card py-3 text-sm font-bold text-muted-foreground"
-              >
-                Report a problem
-              </button>
-              <button
-                type="button"
-                onClick={() => confirm.mutate()}
-                disabled={confirm.isPending}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
-              >
-                {confirm.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="size-4" strokeWidth={2.5} />
-                )}
-                Confirm delivery
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <label className="block text-sm text-muted-foreground">
-              What went wrong?
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={3}
-                placeholder="e.g. item missing, wrong order, never arrived…"
-                className="mt-1.5 w-full rounded-xl border border-border bg-card p-3 text-sm text-foreground"
-              />
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setReporting(false)}
-                className="flex-1 rounded-xl border border-border bg-card py-3 text-sm font-bold text-muted-foreground"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={() => report.mutate()}
-                disabled={report.isPending || reason.trim().length === 0}
-                className="flex-1 rounded-xl bg-destructive py-3 text-sm font-bold text-destructive-foreground disabled:opacity-60"
-              >
-                {report.isPending ? "Sending…" : "Send report"}
-              </button>
-            </div>
-          </>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold">Customer</p>
+        <p className="mt-1 text-sm text-muted-foreground">{order.profiles?.full_name || "Customer"}</p>
+        {order.profiles?.phone && (
+          <a
+            href={`tel:${order.profiles.phone}`}
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
+          >
+            <Phone className="size-3.5" />
+            {order.profiles.phone}
+          </a>
+        )}
+        {order.addresses?.formatted && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+            <MapPin className="mt-0.5 size-3.5 shrink-0" />
+            {order.addresses.formatted}
+          </p>
         )}
       </div>
-    </Panel>
+
+      {showMap && (
+        <div className="overflow-hidden rounded-xl border border-border">
+          <OrderRouteMap
+            merchant={{ lat: storeLat!, lng: storeLng!, label: "Your store" }}
+            customer={{
+              lat: order.addresses!.lat!,
+              lng: order.addresses!.lng!,
+              label: order.addresses!.formatted ?? "Delivery address",
+            }}
+            rider={
+              order.riders?.current_lat != null && order.riders?.current_lng != null
+                ? { lat: order.riders.current_lat, lng: order.riders.current_lng }
+                : null
+            }
+            className="h-56 w-full rounded-none border-0"
+          />
+        </div>
+      )}
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold">Items</p>
+        <div className="mt-2 space-y-2">
+          {(order.order_items ?? []).map((item) => (
+            <div key={item.id} className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                {item.quantity}× {item.products?.name ?? "Item"}
+              </span>
+              <span>{naira(item.unit_price_kobo * item.quantity)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Subtotal</span>
+            <span>{naira(order.subtotal_kobo)}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Delivery fee</span>
+            <span>{naira(order.delivery_fee_kobo)}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Service fee</span>
+            <span>{naira(order.service_fee_kobo)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-1.5 text-sm font-bold">
+            <span>Total</span>
+            <span>{naira(order.total_kobo)}</span>
+          </div>
+        </div>
+      </div>
+
+      {order.status === "ready_for_pickup" && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-center">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Pickup code — read to rider
+          </p>
+          <p className="font-display text-3xl font-extrabold tracking-[0.3em] text-primary">
+            {order.pickup_code ?? "----"}
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
+      {isPending && (
+        <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-muted-foreground">Prep time</label>
+            <select
+              value={prepTime}
+              onChange={(e) => setPrepTime(Number(e.target.value))}
+              className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+            >
+              {[5, 10, 15, 20, 25, 30, 45, 60].map((m) => (
+                <option key={m} value={m}>
+                  {m} min
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onAccept}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2.5 text-sm font-bold text-primary-foreground"
+            >
+              <CheckCircle2 className="size-4" />
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={onOpenReject}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-destructive px-3 py-2.5 text-sm font-bold text-destructive"
+            >
+              <XCircle className="size-4" />
+              Reject
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isReadyable && (
+        <button
+          type="button"
+          onClick={onMarkReady}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-3 text-sm font-bold text-accent-foreground"
+        >
+          <Package className="size-4" />
+          Mark Ready for Pickup
+        </button>
+      )}
+
+      {canConfirmReady && (
+        <button
+          type="button"
+          onClick={onConfirmReady}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-3 text-sm font-bold text-primary-foreground"
+        >
+          <Package className="size-4" />
+          Food is ready — get pickup code
+        </button>
+      )}
+    </div>
   );
 }
