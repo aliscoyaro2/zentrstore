@@ -3,8 +3,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
- * Logs that a rider has physically arrived at the merchant or the customer.
- * Non-blocking for the rider's own flow — audit/analytics only.
+ * Logs that a rider has physically arrived at the merchant or the
+ * customer. Non-blocking for the rider's own flow (the client swallows
+ * failures here) — this is for audit/analytics, not a gate.
  */
 export const logRiderArrival = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -18,11 +19,9 @@ export const logRiderArrival = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { error } = await supabase.from("order_events").insert({
-      order_id: data.orderId,
-      actor_type: "rider",
-      actor_id: context.userId,
-      event_type: data.leg === "merchant" ? "rider_arrived_merchant" : "rider_arrived_customer",
+    const { error } = await supabase.rpc("log_rider_arrival", {
+      p_order_id: data.orderId,
+      p_leg: data.leg,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -30,12 +29,12 @@ export const logRiderArrival = createServerFn({ method: "POST" })
 
 /**
  * Lets a rider back out of an order already assigned to them (direct
- * assignment or post-acceptance). Runs as SECURITY DEFINER because the
- * "Rider can update assigned orders" RLS policy has no WITH CHECK clause,
- * so a client-side update that nulls rider_id re-evaluates the USING
- * clause against the *new* row (auth.uid() = null) and is rejected.
- * Resets the order to 'preparing' with no rider, which trg_auto_dispatch_on_preparing
- * picks up to re-dispatch automatically.
+ * assignment or post-acceptance). Runs as a SECURITY DEFINER RPC because
+ * the "Rider can update assigned orders" RLS policy on `orders` has no
+ * WITH CHECK clause — a client-side update that nulls rider_id re-checks
+ * USING against the *new* row (auth.uid() = null) and gets rejected.
+ * The RPC resets the order to 'preparing' with no rider, which
+ * trg_auto_dispatch_on_preparing picks up to re-dispatch automatically.
  */
 export const riderDeclineOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -56,8 +55,11 @@ export const riderDeclineOrder = createServerFn({ method: "POST" })
   });
 
 /**
- * Verifies the 4-digit pickup code the merchant reads to the rider once the
- * order hits 'ready_for_pickup'. On success advances the order to 'picked_up'.
+ * Verifies the 4-digit pickup code the merchant reads to the rider once
+ * the order hits 'ready_for_pickup' (code is auto-generated server-side —
+ * see generate_pickup_code trigger). On success, advances the order to
+ * 'picked_up'. On a wrong code, the RPC logs the mismatch to
+ * rider_audit_log and raises, so this simply surfaces that message.
  */
 export const verifyPickupCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -71,19 +73,10 @@ export const verifyPickupCode = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { data: order, error: fetchError } = await supabase
-      .from("orders")
-      .select("id, pickup_code")
-      .eq("id", data.orderId)
-      .maybeSingle();
-    if (fetchError) throw new Error(fetchError.message);
-    if (!order) throw new Error("Order not found");
-    if (order.pickup_code !== data.code) throw new Error("Incorrect pickup code");
-
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "picked_up" })
-      .eq("id", data.orderId);
+    const { error } = await supabase.rpc("verify_pickup_code", {
+      p_order_id: data.orderId,
+      p_code: data.code,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
