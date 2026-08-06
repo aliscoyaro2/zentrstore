@@ -157,7 +157,7 @@ function MerchantProfilePage() {
             <Mail className="size-4 text-muted-foreground" />
             <span>{user?.email}</span>
           </div>
-          <Link to="/account/edit" className="mt-3 inline-block text-sm font-semibold text-primary">
+          <Link to="/customer/account/edit" className="mt-3 inline-block text-sm font-semibold text-primary">
             Edit profile
           </Link>
         </div>

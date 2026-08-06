@@ -20,6 +20,8 @@ export const logRiderArrival = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { error } = await supabase.from("order_events").insert({
       order_id: data.orderId,
+      actor_type: "rider",
+      actor_id: context.userId,
       event_type: data.leg === "merchant" ? "rider_arrived_merchant" : "rider_arrived_customer",
     });
     if (error) throw new Error(error.message);

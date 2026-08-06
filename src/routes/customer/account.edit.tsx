@@ -89,7 +89,7 @@ function EditProfilePage() {
       setSaveStatus("success");
       setTimeout(() => {
         setSaveStatus("idle");
-        navigate({ to: "/account" });
+        navigate({ to: "/customer/account" });
       }, 1500);
     },
     onError: (error: any) => {
