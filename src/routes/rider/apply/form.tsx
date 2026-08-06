@@ -363,8 +363,8 @@ function RiderApplyForm() {
               <input value={lga} onChange={(e) => setLga(e.target.value)} placeholder="e.g. Maiduguri" className={inputClass} />
             </StepField>
             <PhotoCaptureField
-              label="Passport photograph"
-              hint="A clear photo of your face, taken now."
+              label="Passport photograph (optional for now)"
+              hint="A clear photo of your face, taken now. You can add this later before going live."
               value={photoUrl}
               onCapture={async (file) => {
                 if (!applicationToken) return;
@@ -396,7 +396,7 @@ function RiderApplyForm() {
               <input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} className={inputClass} />
             </StepField>
             <PhotoCaptureField
-              label="Driver's license (front)"
+              label="Driver's license (front) (optional for now)"
               value={licenseFrontUrl}
               onCapture={async (file) => {
                 if (!applicationToken) return;
@@ -406,7 +406,7 @@ function RiderApplyForm() {
               facingMode="environment"
             />
             <PhotoCaptureField
-              label="Driver's license (back)"
+              label="Driver's license (back) (optional for now)"
               value={licenseBackUrl}
               onCapture={async (file) => {
                 if (!applicationToken) return;
@@ -416,7 +416,7 @@ function RiderApplyForm() {
               facingMode="environment"
             />
             <PhotoCaptureField
-              label="Vehicle insurance"
+              label="Vehicle insurance (optional for now)"
               value={insuranceUrl}
               onCapture={async (file) => {
                 if (!applicationToken) return;
