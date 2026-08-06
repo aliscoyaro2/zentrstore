@@ -305,7 +305,6 @@ export const submitMerchantApplication = createServerFn({ method: "POST" })
       [app.prep_time_mins, "Preparation time"],
       [app.self_delivery === null || app.self_delivery === undefined ? null : true, "Self delivery"],
       [app.pos_available === null || app.pos_available === undefined ? null : true, "POS availability"],
-      [app.owner_id_doc_url, "Owner ID upload"],
       [app.agreement_accepted_at, "Signed merchant agreement"],
       [app.agreement_signature_name, "Digital signature"],
     ];
