@@ -126,10 +126,16 @@ export const approveMerchantApplication = createServerFn({ method: "POST" })
       `${getSiteUrl()}/auth/set-password`,
     );
 
+    // Upsert, not update: nothing in the database auto-creates a `profiles`
+    // row when an auth user is created (there's no DB trigger on
+    // auth.users), so for a brand-new applicant this row may not exist yet.
+    // A plain `.update()` would silently affect 0 rows in that case, then
+    // the `merchants` insert below would fail its FK to `profiles.id` (the
+    // same "violates foreign key constraint" error seen on the rider side).
+    // Upsert guarantees the row exists either way.
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({ role: "merchant", full_name: app.business_name, phone: app.phone, email: app.email })
-      .eq("id", ownerId);
+      .upsert({ id: ownerId, role: "merchant", full_name: app.business_name, phone: app.phone, email: app.email });
     if (profileError) throw new Error(profileError.message);
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
