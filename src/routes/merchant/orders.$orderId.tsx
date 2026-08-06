@@ -276,7 +276,12 @@ function OrderDetailBody({
 }) {
   const isPending = order.status === "paid" || order.status === "merchant_pending" || order.status === "placed";
   const isReadyable = order.status === "merchant_accepted";
-  const canConfirmReady = order.status === "preparing";
+  // Merchant can still issue the pickup code once a rider has been
+  // assigned and is on the way — not just while status is still
+  // 'preparing'. Without this, the order got stuck: the rider correctly
+  // waits at "heading to store", but the merchant had no button left to
+  // press once dispatch moved status past 'preparing'.
+  const canConfirmReady = ["preparing", "rider_assigned", "rider_en_route_to_merchant"].includes(order.status);
   const showMap =
     MAP_STATUSES.includes(order.status) &&
     storeLat != null &&
