@@ -19,7 +19,10 @@ import {
   User,
   Navigation2,
   Check,
-  Circle
+  Circle,
+  ChevronDown,
+  ChevronUp,
+  Phone
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
@@ -48,6 +51,7 @@ export const Route = createFileRoute("/rider/")({
 const ACTIVE_DELIVERY_STATUSES = new Set([
   "rider_assigned",
   "rider_en_route_to_merchant",
+  "ready_for_pickup",
   "picked_up",
   "rider_en_route_to_customer",
 ]);
@@ -70,6 +74,7 @@ type JourneyStep = typeof JOURNEY_STEPS[number]["id"];
 const STATUS_TO_STEP: Record<string, JourneyStep> = {
   rider_assigned: "assigned",
   rider_en_route_to_merchant: "heading_to_store",
+  ready_for_pickup: "arrived_store",
   picked_up: "picked_up",
   rider_en_route_to_customer: "heading_to_customer",
   delivered: "delivered",
@@ -133,6 +138,13 @@ function RiderDashboard() {
           delivery_fee_kobo,
           rider_assigned_at,
           placed_at,
+          prep_time_mins,
+          pickup_code,
+          customer_id,
+          profiles:customer_id (
+            full_name,
+            phone
+          ),
           merchants (
             business_name,
             address_text,
@@ -142,6 +154,7 @@ function RiderDashboard() {
           ),
           addresses (
             formatted,
+            landmark,
             lat,
             lng
           )
@@ -150,7 +163,7 @@ function RiderDashboard() {
         .eq("rider_id", user!.id)
         // 'delivered' = rider dropped it off, awaiting customer confirmation
         // (or the 24h auto-complete safety net). 'completed' = paid out.
-        .in("status", ["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer", "delivered", "completed"])
+        .in("status", ["rider_assigned", "rider_en_route_to_merchant", "ready_for_pickup", "picked_up", "rider_en_route_to_customer", "delivered", "completed"])
         .order("placed_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -331,6 +344,11 @@ function RiderDashboard() {
         {currentJob && isPendingAccept ? (
           <IncomingJobCard
             job={currentJob}
+            riderLocation={
+              rider.data?.current_lat != null && rider.data?.current_lng != null
+                ? { lat: rider.data.current_lat, lng: rider.data.current_lng }
+                : null
+            }
             onAccept={async () => {
               await advanceOrder(currentJob.id, "rider_en_route_to_merchant");
             }}
@@ -682,18 +700,21 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Bike; label: string; 
   );
 }
 
-// ── Incoming Job Card (with countdown) ──
+// ── Incoming Job Card (with countdown + tap-to-expand full route preview) ──
 
 function IncomingJobCard({
   job,
+  riderLocation,
   onAccept,
   onDecline,
 }: {
   job: any;
+  riderLocation?: { lat: number; lng: number } | null;
   onAccept: () => void;
   onDecline: () => void;
 }) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!job.rider_assigned_at) {
@@ -711,6 +732,60 @@ function IncomingJobCard({
   }, [job.rider_assigned_at]);
 
   const expired = secondsLeft === 0;
+  const merchant = job.merchants;
+  const dropoff = job.addresses;
+  const hasMerchantLocation = merchant?.lat != null && merchant?.lng != null;
+  const hasDropoffLocation = dropoff?.lat != null && dropoff?.lng != null;
+
+  // Real routed polyline for both legs (rider -> merchant, merchant ->
+  // customer), only fetched once the rider actually opens the full
+  // preview — no point paying for a route call on a card they might
+  // decline without ever expanding.
+  const pickupRoute = useQuery({
+    queryKey: ["incoming-job-pickup-route", job.id, riderLocation?.lat, riderLocation?.lng],
+    enabled: expanded && Boolean(riderLocation) && hasMerchantLocation,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { calculateRoute } = await import("@/lib/routing.functions");
+      return calculateRoute({
+        data: { points: [riderLocation!, { lat: merchant.lat, lng: merchant.lng }] },
+      });
+    },
+  });
+
+  const fullTripRoute = useQuery({
+    queryKey: ["incoming-job-full-route", job.id, riderLocation?.lat, riderLocation?.lng],
+    enabled: expanded && Boolean(riderLocation) && hasMerchantLocation && hasDropoffLocation,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { calculateRoute } = await import("@/lib/routing.functions");
+      return calculateRoute({
+        data: {
+          points: [riderLocation!, { lat: merchant.lat, lng: merchant.lng }, { lat: dropoff.lat, lng: dropoff.lng }],
+        },
+      });
+    },
+  });
+
+  const acceptDeclineButtons = (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={onDecline}
+        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-3.5 text-sm font-bold text-muted-foreground"
+      >
+        <X className="size-4" strokeWidth={2.5} />
+        Decline
+      </button>
+      <button
+        type="button"
+        onClick={onAccept}
+        className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
+      >
+        Accept
+      </button>
+    </div>
+  );
 
   return (
     <Panel className="overflow-hidden border-primary/40">
@@ -729,32 +804,91 @@ function IncomingJobCard({
           </span>
         ) : null}
       </div>
+
+      {/* Full preview — only fetched/rendered once expanded */}
+      {expanded && (
+        <div className="border-b border-border">
+          {hasMerchantLocation && hasDropoffLocation ? (
+            <OrderRouteMap
+              merchant={{ lat: merchant.lat, lng: merchant.lng, label: merchant.business_name ?? "Pickup" }}
+              customer={{ lat: dropoff.lat, lng: dropoff.lng, label: dropoff.formatted ?? "Drop-off" }}
+              rider={riderLocation}
+              routePolyline={fullTripRoute.data?.polyline ?? pickupRoute.data?.polyline}
+              className="h-56 w-full rounded-none border-0"
+            />
+          ) : (
+            <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
+              Location data unavailable for this order
+            </div>
+          )}
+
+          <div className="space-y-3 p-4">
+            {acceptDeclineButtons}
+
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Merchant</p>
+              <p className="text-sm font-semibold">{merchant?.business_name ?? "Store"}</p>
+              <p className="text-xs text-muted-foreground">{merchant?.address_text ?? "Address not set"}</p>
+              {job.prep_time_mins != null && (
+                <p className="text-xs text-muted-foreground">~{job.prep_time_mins} min prep time</p>
+              )}
+            </div>
+
+            <div className="space-y-2 border-t border-border pt-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Customer drop-off</p>
+              <p className="text-sm font-semibold">{dropoff?.formatted ?? "Address to follow"}</p>
+              {dropoff?.landmark && <p className="text-xs text-muted-foreground">Landmark: {dropoff.landmark}</p>}
+              {job.profiles?.full_name && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <User className="size-3" /> {job.profiles.full_name}
+                  {job.profiles?.phone && (
+                    <>
+                      <Phone className="ml-1.5 size-3" /> {job.profiles.phone}
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
+              {pickupRoute.isLoading && <span>Calculating route…</span>}
+              {pickupRoute.data && (
+                <span>{(pickupRoute.data.distanceMeters / 1000).toFixed(1)} km to pickup · ~{Math.round(pickupRoute.data.durationSeconds / 60)} min</span>
+              )}
+              {fullTripRoute.data && (
+                <span>{(fullTripRoute.data.distanceMeters / 1000).toFixed(1)} km total trip</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="p-4">
-        <p className="text-base font-bold">{job.merchants?.business_name ?? "Store"}</p>
+        <p className="text-base font-bold">{merchant?.business_name ?? "Store"}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {job.merchants?.address_text ?? "Pickup address to follow"}
+          {merchant?.address_text ?? "Pickup address to follow"}
         </p>
         <p className="mt-3 font-display text-lg font-extrabold text-primary">
           {naira(job.delivery_fee_kobo)}
         </p>
 
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onDecline}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-3.5 text-sm font-bold text-muted-foreground"
-          >
-            <X className="size-4" strokeWidth={2.5} />
-            Decline
-          </button>
-          <button
-            type="button"
-            onClick={onAccept}
-            className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
-          >
-            Accept
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg border border-border py-2 text-xs font-semibold text-muted-foreground"
+        >
+          {expanded ? (
+            <>
+              Hide full details <ChevronUp className="size-3.5" />
+            </>
+          ) : (
+            <>
+              View route &amp; details <ChevronDown className="size-3.5" />
+            </>
+          )}
+        </button>
+
+        <div className="mt-4">{acceptDeclineButtons}</div>
       </div>
     </Panel>
   );
@@ -872,7 +1006,15 @@ function CurrentJobCard({
             {showArrivalStep ? (
               <button
                 type="button"
-                onClick={() => setArrived(true)}
+                onClick={async () => {
+                  setArrived(true);
+                  try {
+                    const { logRiderArrival } = await import("@/lib/rider-arrival.functions");
+                    await logRiderArrival({ data: { orderId: job.id, leg: "merchant" } });
+                  } catch {
+                    // Non-critical — arrival logging shouldn't block the rider's flow.
+                  }
+                }}
                 className="w-full rounded-xl bg-accent py-3.5 text-sm font-bold text-accent-foreground"
               >
                 <span className="flex items-center justify-center gap-2">
@@ -881,16 +1023,12 @@ function CurrentJobCard({
                 </span>
               </button>
             ) : job.status === "rider_en_route_to_merchant" && arrived ? (
-              <button
-                type="button"
-                onClick={() => onAdvance(job.id, "picked_up")}
-                className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <PackageCheck className="size-4" />
-                  Confirm pickup
-                </span>
-              </button>
+              <div className="rounded-xl bg-secondary p-3.5 text-center text-sm text-muted-foreground">
+                <Loader2 className="mx-auto mb-1 size-4 animate-spin" />
+                Waiting for the merchant to confirm the order is ready…
+              </div>
+            ) : job.status === "ready_for_pickup" ? (
+              <PickupCodeEntry orderId={job.id} onVerified={() => onAdvance(job.id, "picked_up")} />
             ) : action && action.nextStep ? (
               <button
                 type="button"
@@ -930,6 +1068,65 @@ function CurrentJobCard({
         )}
       </div>
     </Panel>
+  );
+}
+
+// ── Pickup code entry — gates 'ready_for_pickup' -> 'picked_up' ──
+// The merchant reads the rider a 4-digit code (auto-generated server-side
+// the moment they hit "Food is ready"). The rider must enter it correctly
+// via verify_pickup_code before the order can advance — this is the
+// simple anti-misdelivery/wrong-pickup layer.
+function PickupCodeEntry({ orderId, onVerified }: { orderId: string; onVerified: () => void }) {
+  const [code, setCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (code.trim().length !== 4) {
+      setError("Enter the 4-digit code");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { verifyPickupCode } = await import("@/lib/rider-arrival.functions");
+      await verifyPickupCode({ data: { orderId, code: code.trim() } });
+      onVerified();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not verify code");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5">
+      <p className="text-center text-xs font-semibold text-muted-foreground">
+        Ask the merchant for the 4-digit pickup code
+      </p>
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={4}
+        value={code}
+        onChange={(e) => {
+          setCode(e.target.value.replace(/\D/g, ""));
+          setError(null);
+        }}
+        placeholder="0000"
+        className="mt-2 w-full rounded-lg border border-border bg-card py-2.5 text-center font-display text-2xl font-extrabold tracking-[0.4em] text-foreground"
+      />
+      {error && <p className="mt-1.5 text-center text-xs font-medium text-destructive">{error}</p>}
+      <button
+        type="button"
+        onClick={submit}
+        disabled={submitting || code.length !== 4}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
+      >
+        {submitting ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />}
+        Confirm pickup
+      </button>
+    </div>
   );
 }
 
