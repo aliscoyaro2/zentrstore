@@ -75,7 +75,7 @@ function MerchantOrderDetailPage() {
           cancel_reason,
           customer_id,
           profiles:customer_id ( full_name, phone ),
-          addresses ( formatted, lat, lng ),
+          addresses ( formatted, landmark, lat, lng ),
           riders ( current_lat, current_lng ),
           order_items ( id, quantity, unit_price_kobo, products ( name ) )
         `)
@@ -245,9 +245,9 @@ function useOrderDataShape() {
     prep_time_mins: number | null;
     pickup_code: string | null;
     cancel_reason: string | null;
-    customer_id: string;
+    customer_id: string | null;
     profiles: { full_name: string | null; phone: string | null } | null;
-    addresses: { formatted: string | null; lat: number | null; lng: number | null } | null;
+    addresses: { formatted: string | null; landmark: string | null; lat: number | null; lng: number | null } | null;
     riders: { current_lat: number | null; current_lng: number | null } | null;
     order_items: { id: string; quantity: number; unit_price_kobo: number; products: { name: string | null } | null }[] | null;
   };
@@ -315,6 +315,7 @@ function OrderDetailBody({
           <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
             <MapPin className="mt-0.5 size-3.5 shrink-0" />
             {order.addresses.formatted}
+            {order.addresses.landmark && <span className="text-xs text-muted-foreground"> · Landmark: {order.addresses.landmark}</span>}
           </p>
         )}
       </div>

@@ -1976,6 +1976,10 @@ export type Database = {
         Args: { p_order_id: string; p_reason: string }
         Returns: string
       }
+      rider_decline_order: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
       verify_pickup_code: {
         Args: { p_code: string; p_order_id: string }
         Returns: undefined

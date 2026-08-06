@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Loader2, MapPin, TriangleAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
 import { StatusRail, statusLabel } from "@/components/zentra/status-rail";
@@ -51,7 +51,7 @@ function OrderDetailPage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason,customer_report_reason,merchants(business_name,address_text,phone,lat,lng),addresses(formatted,lat,lng),riders(current_lat,current_lng),order_items(id,quantity,unit_price_kobo,products(name))",
+          "id,status,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,total_kobo,placed_at,cancel_reason,customer_report_reason,merchants(business_name,address_text,phone,lat,lng),addresses(formatted,landmark,lat,lng),riders(current_lat,current_lng),order_items(id,quantity,unit_price_kobo,products(name))",
         )
         .eq("id", orderId)
         .eq("customer_id", user!.id)
@@ -118,6 +118,21 @@ function OrderDetailPage() {
                   />
                 </Panel>
               )}
+
+            {order.data.addresses?.formatted && (
+              <Panel className="flex items-start gap-3 p-4">
+                <MapPin className="mt-0.5 size-4 shrink-0 text-primary" strokeWidth={2.2} />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Delivery address
+                  </p>
+                  <p className="mt-0.5 text-sm text-foreground">{order.data.addresses.formatted}</p>
+                  {order.data.addresses.landmark && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">Landmark: {order.data.addresses.landmark}</p>
+                  )}
+                </div>
+              </Panel>
+            )}
 
             <Panel className="space-y-3 p-4">
               <p className="text-sm font-semibold">Items</p>

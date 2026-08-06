@@ -47,8 +47,8 @@ type OrderRow = {
   placed_at: string | null;
   payment_reference: string;
   cancel_reason: string | null;
-  merchants: { business_name: string; lat: number | null; lng: number | null } | null;
-  addresses: { lat: number | null; lng: number | null } | null;
+  merchants: { business_name: string; address_text: string | null; lat: number | null; lng: number | null } | null;
+  addresses: { formatted: string | null; landmark: string | null; lat: number | null; lng: number | null } | null;
   profiles: { full_name: string | null; email: string | null } | null;
 };
 
@@ -67,7 +67,7 @@ function OrdersPage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,status,total_kobo,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,placed_at,payment_reference,cancel_reason,merchants(business_name,lat,lng),addresses(lat,lng),profiles:customer_id(full_name,email)",
+          "id,status,total_kobo,subtotal_kobo,delivery_fee_kobo,service_fee_kobo,placed_at,payment_reference,cancel_reason,merchants(business_name,address_text,lat,lng),addresses(formatted,landmark,lat,lng),profiles:customer_id(full_name,email)",
         )
         .order("placed_at", { ascending: false })
         .limit(200);
@@ -310,6 +310,32 @@ function OrdersPage() {
               <p className="mt-2 text-xs text-destructive">Reason: {selected.cancel_reason}</p>
             ) : null}
 
+            {(selected.addresses?.formatted || selected.merchants?.address_text) && (
+              <div className="mt-4 space-y-1.5 rounded-lg border border-border p-3 text-sm">
+                {selected.merchants?.address_text && (
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Pickup — {selected.merchants.business_name}</p>
+                      <p className="text-sm">{selected.merchants.address_text}</p>
+                    </div>
+                  </div>
+                )}
+                {selected.addresses?.formatted && (
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-info" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Delivery address</p>
+                      <p className="text-sm">{selected.addresses.formatted}</p>
+                      {selected.addresses.landmark && (
+                        <p className="text-xs text-muted-foreground">Landmark: {selected.addresses.landmark}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="mt-5 space-y-1 rounded-lg border border-border p-3 text-sm">
               <Row label="Subtotal" value={naira(selected.subtotal_kobo)} />
               <Row label="Delivery fee" value={naira(selected.delivery_fee_kobo)} />
@@ -349,11 +375,21 @@ function OrdersPage() {
                   className="h-56 w-full"
                 >
                   <Marker position={[selected.merchants.lat, selected.merchants.lng]} icon={merchantIcon}>
-                    <Popup>{selected.merchants.business_name}</Popup>
+                    <Popup>
+                      <span className="font-medium">{selected.merchants.business_name}</span>
+                      {selected.merchants.address_text && (
+                        <span className="block text-xs text-muted-foreground">{selected.merchants.address_text}</span>
+                      )}
+                    </Popup>
                   </Marker>
                   {selected.addresses?.lat != null && selected.addresses?.lng != null && (
                     <Marker position={[selected.addresses.lat, selected.addresses.lng]} icon={customerIcon}>
-                      <Popup>Delivery address</Popup>
+                      <Popup>
+                        <span className="font-medium">{selected.addresses.formatted ?? "Delivery address"}</span>
+                        {selected.addresses.landmark && (
+                          <span className="block text-xs text-muted-foreground">Landmark: {selected.addresses.landmark}</span>
+                        )}
+                      </Popup>
                     </Marker>
                   )}
                   {(riders.data ?? [])

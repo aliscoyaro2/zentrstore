@@ -55,6 +55,7 @@ import { Route as MerchantApplyIndexRouteImport } from './routes/merchant/apply/
 import { Route as MerchantApplyFormRouteImport } from './routes/merchant/apply/form'
 import { Route as MerchantApplySubmittedRouteImport } from './routes/merchant/apply/submitted'
 import { Route as MerchantOrdersIndexRouteImport } from './routes/merchant/orders/index'
+import { Route as MerchantOrdersOrderIdRouteImport } from './routes/merchant/orders.$orderId'
 import { Route as MerchantProductsIndexRouteImport } from './routes/merchant/products/index'
 import { Route as MerchantProfileIndexRouteImport } from './routes/merchant/profile/index'
 import { Route as MerchantSettingsIndexRouteImport } from './routes/merchant/settings/index'
@@ -295,6 +296,11 @@ const MerchantOrdersIndexRoute = MerchantOrdersIndexRouteImport.update({
   path: '/merchant/orders/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchantOrdersOrderIdRoute = MerchantOrdersOrderIdRouteImport.update({
+  id: '/merchant/orders/$orderId',
+  path: '/merchant/orders/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MerchantProductsIndexRoute = MerchantProductsIndexRouteImport.update({
   id: '/merchant/products/',
   path: '/merchant/products/',
@@ -375,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/customer/payment-status/$orderId': typeof CustomerPaymentStatusOrderIdRoute
   '/merchant/apply/form': typeof MerchantApplyFormRoute
   '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
+  '/merchant/orders/$orderId': typeof MerchantOrdersOrderIdRoute
   '/rider/apply/form': typeof RiderApplyFormRoute
   '/rider/apply/submitted': typeof RiderApplySubmittedRoute
   '/customer/orders/': typeof CustomerOrdersIndexRoute
@@ -430,6 +437,7 @@ export interface FileRoutesByTo {
   '/customer/payment-status/$orderId': typeof CustomerPaymentStatusOrderIdRoute
   '/merchant/apply/form': typeof MerchantApplyFormRoute
   '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
+  '/merchant/orders/$orderId': typeof MerchantOrdersOrderIdRoute
   '/rider/apply/form': typeof RiderApplyFormRoute
   '/rider/apply/submitted': typeof RiderApplySubmittedRoute
   '/customer/orders': typeof CustomerOrdersIndexRoute
@@ -486,6 +494,7 @@ export interface FileRoutesById {
   '/customer/payment-status/$orderId': typeof CustomerPaymentStatusOrderIdRoute
   '/merchant/apply/form': typeof MerchantApplyFormRoute
   '/merchant/apply/submitted': typeof MerchantApplySubmittedRoute
+  '/merchant/orders/$orderId': typeof MerchantOrdersOrderIdRoute
   '/rider/apply/form': typeof RiderApplyFormRoute
   '/rider/apply/submitted': typeof RiderApplySubmittedRoute
   '/customer/orders/': typeof CustomerOrdersIndexRoute
@@ -543,6 +552,7 @@ export interface FileRouteTypes {
     | '/customer/payment-status/$orderId'
     | '/merchant/apply/form'
     | '/merchant/apply/submitted'
+    | '/merchant/orders/$orderId'
     | '/rider/apply/form'
     | '/rider/apply/submitted'
     | '/customer/orders/'
@@ -598,6 +608,7 @@ export interface FileRouteTypes {
     | '/customer/payment-status/$orderId'
     | '/merchant/apply/form'
     | '/merchant/apply/submitted'
+    | '/merchant/orders/$orderId'
     | '/rider/apply/form'
     | '/rider/apply/submitted'
     | '/customer/orders'
@@ -653,6 +664,7 @@ export interface FileRouteTypes {
     | '/customer/payment-status/$orderId'
     | '/merchant/apply/form'
     | '/merchant/apply/submitted'
+    | '/merchant/orders/$orderId'
     | '/rider/apply/form'
     | '/rider/apply/submitted'
     | '/customer/orders/'
@@ -708,6 +720,7 @@ export interface RootRouteChildren {
   CustomerPaymentStatusOrderIdRoute: typeof CustomerPaymentStatusOrderIdRoute
   MerchantApplyFormRoute: typeof MerchantApplyFormRoute
   MerchantApplySubmittedRoute: typeof MerchantApplySubmittedRoute
+  MerchantOrdersOrderIdRoute: typeof MerchantOrdersOrderIdRoute
   RiderApplyFormRoute: typeof RiderApplyFormRoute
   RiderApplySubmittedRoute: typeof RiderApplySubmittedRoute
   CustomerOrdersIndexRoute: typeof CustomerOrdersIndexRoute
@@ -1044,6 +1057,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantOrdersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/merchant/orders/$orderId': {
+      id: '/merchant/orders/$orderId'
+      path: '/merchant/orders/$orderId'
+      fullPath: '/merchant/orders/$orderId'
+      preLoaderRoute: typeof MerchantOrdersOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/merchant/products/': {
       id: '/merchant/products/'
       path: '/merchant/products'
@@ -1151,6 +1171,7 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerPaymentStatusOrderIdRoute: CustomerPaymentStatusOrderIdRoute,
   MerchantApplyFormRoute: MerchantApplyFormRoute,
   MerchantApplySubmittedRoute: MerchantApplySubmittedRoute,
+  MerchantOrdersOrderIdRoute: MerchantOrdersOrderIdRoute,
   RiderApplyFormRoute: RiderApplyFormRoute,
   RiderApplySubmittedRoute: RiderApplySubmittedRoute,
   CustomerOrdersIndexRoute: CustomerOrdersIndexRoute,
@@ -1165,3 +1186,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
