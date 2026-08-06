@@ -10,7 +10,7 @@ interface UsageEvent {
   operation: "geocode" | "reverseGeocode" | "route" | "distance";
   durationMs: number;
   success: boolean;
-  errorCode?: string;
+  errorCode?: string | undefined;
 }
 
 export function logMapProviderUsage(event: UsageEvent) {

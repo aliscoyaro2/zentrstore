@@ -16,7 +16,7 @@ interface LeafletMapProps {
   /** Markers, popups, etc. — anything from react-leaflet or this map/ folder. */
   children?: ReactNode;
   /** Route geometry as [lat, lng] pairs, from MapProviderService.route(). */
-  routePolyline?: [number, number][];
+  routePolyline?: [number, number][] | undefined;
   className?: string;
   /** Fired with the map's current center whenever the user finishes panning/zooming. */
   onMoveEnd?: (center: { lat: number; lng: number }) => void;

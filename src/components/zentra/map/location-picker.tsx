@@ -16,7 +16,7 @@ export interface PickedLocation {
 }
 
 interface LocationPickerProps {
-  value?: PickedLocation | null;
+  value?: PickedLocation | null | undefined;
   onChange: (location: PickedLocation) => void;
   icon: Icon | DivIcon;
   placeholder?: string;

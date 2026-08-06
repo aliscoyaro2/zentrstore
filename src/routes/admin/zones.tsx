@@ -93,7 +93,7 @@ function ZonesPage() {
   });
 
   async function updateZone(id: string, patch: Partial<ZoneRow>) {
-    const { error } = await supabase.from("zones").update(patch).eq("id", id);
+    const { error } = await supabase.from("zones").update(patch as never).eq("id", id);
     if (error) {
       toast.error("Could not update zone", { description: error.message });
       return;

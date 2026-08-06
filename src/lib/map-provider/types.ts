@@ -18,12 +18,12 @@ export interface GeocodeResult {
   confidence?: number;
   /** Raw address components, when the provider exposes them. */
   components?: {
-    houseNumber?: string;
-    street?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    postcode?: string;
+    houseNumber?: string | undefined;
+    street?: string | undefined;
+    city?: string | undefined;
+    state?: string | undefined;
+    country?: string | undefined;
+    postcode?: string | undefined;
   };
 }
 
@@ -78,7 +78,7 @@ export class MapProviderError extends Error {
       | "NOT_FOUND"
       | "NETWORK_ERROR"
       | "CONFIG_ERROR",
-    public readonly cause?: unknown,
+    public override readonly cause?: unknown,
   ) {
     super(message);
     this.name = "MapProviderError";

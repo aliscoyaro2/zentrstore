@@ -492,7 +492,7 @@ function AvailableJobsSection({
   onDecline 
 }: { 
   offers: any[]; 
-  riderLocation?: { lat: number; lng: number } | null;
+  riderLocation?: { lat: number; lng: number } | null | undefined;
   onAccept: (offerId: string) => void; 
   onDecline: (offerId: string) => void;
 }) {
@@ -519,7 +519,7 @@ function OfferCard({
   onDecline,
 }: {
   offer: any;
-  riderLocation?: { lat: number; lng: number } | null;
+  riderLocation?: { lat: number; lng: number } | null | undefined;
   onAccept: (offerId: string) => void;
   onDecline: (offerId: string) => void;
 }) {
@@ -709,7 +709,7 @@ function IncomingJobCard({
   onDecline,
 }: {
   job: any;
-  riderLocation?: { lat: number; lng: number } | null;
+  riderLocation?: { lat: number; lng: number } | null | undefined;
   onAccept: () => void;
   onDecline: () => void;
 }) {
@@ -902,7 +902,7 @@ function CurrentJobCard({
   onAdvance,
 }: {
   job: any;
-  riderLocation?: { lat: number; lng: number } | null;
+  riderLocation?: { lat: number; lng: number } | null | undefined;
   onAdvance: (orderId: string, status: string) => void;
 }) {
   const currentStep = STATUS_TO_STEP[job.status] || "assigned";
@@ -1138,7 +1138,7 @@ function ActiveRouteMap({
   riderLocation,
 }: {
   job: any;
-  riderLocation?: { lat: number; lng: number } | null;
+  riderLocation?: { lat: number; lng: number } | null | undefined;
 }) {
   const isHeadingToCustomer = job.status === "picked_up" || job.status === "rider_en_route_to_customer";
   const legLabel = isHeadingToCustomer ? "Route to customer" : "Route to store";
