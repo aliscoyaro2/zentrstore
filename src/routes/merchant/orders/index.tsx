@@ -13,6 +13,7 @@ import {
   merchantAcceptOrder,
   merchantRejectOrder,
   merchantMarkReady,
+  merchantConfirmReadyForPickup,
 } from "@/lib/merchant-order.functions";
 
 export const Route = createFileRoute("/merchant/orders/")({
@@ -78,6 +79,7 @@ function MerchantOrdersPage() {
           placed_at,
           paid_at,
           prep_time_mins,
+          pickup_code,
           customer_id,
           profiles:customer_id (
             full_name,
@@ -115,6 +117,7 @@ function MerchantOrdersPage() {
         query = query.in("status", [
           "merchant_accepted",
           "preparing",
+          "ready_for_pickup",
           "rider_assigned",
           "rider_en_route_to_merchant",
           "picked_up",
@@ -231,6 +234,18 @@ function MerchantOrdersPage() {
       queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
     } catch (err) {
       toast.error("Could not mark ready", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  async function handleConfirmReadyForPickup(orderId: string) {
+    try {
+      const result = await merchantConfirmReadyForPickup({ data: { orderId } });
+      toast.success(`Pickup code: ${result.pickupCode}`, {
+        description: "Read this to the rider when they arrive.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["merchant-orders", storeId] });
+    } catch (err) {
+      toast.error("Could not confirm ready", { description: err instanceof Error ? err.message : undefined });
     }
   }
 
@@ -380,17 +395,28 @@ function MerchantOrdersPage() {
                     {order.status === "preparing" && (
                       <button
                         type="button"
-                        disabled
-                        className="rounded-lg bg-secondary px-3 py-1.5 text-xs font-bold text-muted-foreground"
+                        onClick={() => handleConfirmReadyForPickup(order.id)}
+                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
                       >
                         <span className="flex items-center gap-1">
-                          <Clock className="size-3.5 animate-pulse" />
-                          Looking for rider...
+                          <Package className="size-3.5" />
+                          Food is ready — get pickup code
                         </span>
                       </button>
                     )}
 
-                    {["rider_assigned", "rider_en_route_to_merchant", "picked_up", "rider_en_route_to_customer"].includes(order.status) &&
+                    {order.status === "ready_for_pickup" && (
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Pickup code — read to rider
+                        </p>
+                        <p className="font-display text-lg font-extrabold tracking-[0.3em] text-primary">
+                          {order.pickup_code ?? "----"}
+                        </p>
+                      </div>
+                    )}
+
+                    {["rider_assigned", "rider_en_route_to_merchant", "ready_for_pickup", "picked_up", "rider_en_route_to_customer"].includes(order.status) &&
                       storeLat != null &&
                       storeLng != null &&
                       order.addresses?.lat != null &&
