@@ -156,7 +156,7 @@ function RiderDashboard() {
             lat,
             lng
           ),
-          addresses (
+          addresses:delivery_address_id (
             formatted,
             landmark,
             lat,
@@ -198,7 +198,7 @@ function RiderDashboard() {
               lat,
               lng
             ),
-            addresses (
+            addresses:delivery_address_id (
               formatted,
               landmark,
               lat,
