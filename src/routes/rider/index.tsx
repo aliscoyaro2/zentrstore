@@ -16,13 +16,9 @@ import {
   Loader2,
   Home,
   ShoppingBag,
-  User,
   Navigation2,
   Check,
   Circle,
-  ChevronDown,
-  ChevronUp,
-  Phone
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Screen, PageHeader, Panel, EmptyState } from "@/components/zentra/shell";
@@ -55,8 +51,6 @@ const ACTIVE_DELIVERY_STATUSES = new Set([
   "picked_up",
   "rider_en_route_to_customer",
 ]);
-
-const ACCEPT_WINDOW_SECONDS = 90;
 
 // Define the journey steps with visual states
 const JOURNEY_STEPS = [
@@ -269,7 +263,6 @@ function RiderDashboard() {
   const hasActiveDelivery = Boolean(
     currentJob && ACTIVE_DELIVERY_STATUSES.has(currentJob.status) && currentJob.status !== "delivered",
   );
-  const isPendingAccept = currentJob?.status === "rider_assigned";
 
   // Get available offers (pending)
   const availableOffers = offers.data ?? [];
@@ -340,23 +333,12 @@ function RiderDashboard() {
           />
         )}
 
-        {/* Current Job */}
-        {currentJob && isPendingAccept ? (
-          <IncomingJobCard
-            job={currentJob}
-            riderLocation={
-              rider.data?.current_lat != null && rider.data?.current_lng != null
-                ? { lat: rider.data.current_lat, lng: rider.data.current_lng }
-                : null
-            }
-            onAccept={async () => {
-              await advanceOrder(currentJob.id, "rider_en_route_to_merchant");
-            }}
-            onDecline={async () => {
-              await declineOrder(currentJob.id);
-            }}
-          />
-        ) : currentJob ? (
+        {/* Current Job — accepting an offer already set status to
+            'rider_assigned' server-side (acceptOffer). That's the only
+            acceptance in the journey; the rider lands straight on their
+            Mission screen (CurrentJobCard) and taps "Head to store" from
+            there, no separate confirm screen. */}
+        {currentJob ? (
           <CurrentJobCard 
             job={currentJob} 
             riderLocation={
@@ -366,6 +348,9 @@ function RiderDashboard() {
             }
             onAdvance={async (orderId, status) => {
               await advanceOrder(orderId, status);
+            }}
+            onDecline={async () => {
+              await declineOrder(currentJob.id);
             }}
           />
         ) : isOnline ? (
@@ -415,16 +400,14 @@ function RiderDashboard() {
   }
 
   async function declineOrder(orderId: string) {
-    const { error } = await supabase
-      .from("orders")
-      .update({ rider_id: null, status: "preparing", rider_assigned_at: null })
-      .eq("id", orderId);
-    if (error) {
-      toast.error("Could not decline", { description: error.message });
-      return;
+    try {
+      const { riderDeclineOrder } = await import("@/lib/rider-arrival.functions");
+      await riderDeclineOrder({ data: { orderId } });
+      toast("Job declined", { description: "It's been sent back to dispatch." });
+      await jobs.refetch();
+    } catch (err) {
+      toast.error("Could not decline", { description: err instanceof Error ? err.message : undefined });
     }
-    toast("Job declined", { description: "It's been sent back to dispatch." });
-    await jobs.refetch();
   }
 }
 
@@ -700,220 +683,39 @@ function Stat({ icon: Icon, label, value }: { icon: typeof Bike; label: string; 
   );
 }
 
-// ── Incoming Job Card (with countdown + tap-to-expand full route preview) ──
-
-function IncomingJobCard({
-  job,
-  riderLocation,
-  onAccept,
-  onDecline,
-}: {
-  job: any;
-  riderLocation?: { lat: number; lng: number } | null | undefined;
-  onAccept: () => void;
-  onDecline: () => void;
-}) {
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!job.rider_assigned_at) {
-      setSecondsLeft(ACCEPT_WINDOW_SECONDS);
-      return;
-    }
-    const assignedAt = new Date(job.rider_assigned_at).getTime();
-    const tick = () => {
-      const elapsed = Math.floor((Date.now() - assignedAt) / 1000);
-      setSecondsLeft(Math.max(0, ACCEPT_WINDOW_SECONDS - elapsed));
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [job.rider_assigned_at]);
-
-  const expired = secondsLeft === 0;
-  const merchant = job.merchants;
-  const dropoff = job.addresses;
-  const hasMerchantLocation = merchant?.lat != null && merchant?.lng != null;
-  const hasDropoffLocation = dropoff?.lat != null && dropoff?.lng != null;
-
-  // Real routed polyline for both legs (rider -> merchant, merchant ->
-  // customer), only fetched once the rider actually opens the full
-  // preview — no point paying for a route call on a card they might
-  // decline without ever expanding.
-  const pickupRoute = useQuery({
-    queryKey: ["incoming-job-pickup-route", job.id, riderLocation?.lat, riderLocation?.lng],
-    enabled: expanded && Boolean(riderLocation) && hasMerchantLocation,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { calculateRoute } = await import("@/lib/routing.functions");
-      return calculateRoute({
-        data: { points: [riderLocation!, { lat: merchant.lat, lng: merchant.lng }] },
-      });
-    },
-  });
-
-  const fullTripRoute = useQuery({
-    queryKey: ["incoming-job-full-route", job.id, riderLocation?.lat, riderLocation?.lng],
-    enabled: expanded && Boolean(riderLocation) && hasMerchantLocation && hasDropoffLocation,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { calculateRoute } = await import("@/lib/routing.functions");
-      return calculateRoute({
-        data: {
-          points: [riderLocation!, { lat: merchant.lat, lng: merchant.lng }, { lat: dropoff.lat, lng: dropoff.lng }],
-        },
-      });
-    },
-  });
-
-  const acceptDeclineButtons = (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={onDecline}
-        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-3.5 text-sm font-bold text-muted-foreground"
-      >
-        <X className="size-4" strokeWidth={2.5} />
-        Decline
-      </button>
-      <button
-        type="button"
-        onClick={onAccept}
-        className="flex-1 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
-      >
-        Accept
-      </button>
-    </div>
-  );
-
-  return (
-    <Panel className="overflow-hidden border-primary/40">
-      <div className="flex items-center justify-between border-b border-border bg-primary px-4 py-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-primary-foreground">
-          New delivery request
-        </p>
-        {secondsLeft !== null ? (
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 text-xs font-extrabold tabular-nums",
-              expired ? "bg-destructive text-destructive-foreground" : "bg-primary-foreground/20 text-primary-foreground"
-            )}
-          >
-            {expired ? "Time's up" : `${Math.floor((secondsLeft ?? 0) / 60)}:${String((secondsLeft ?? 0) % 60).padStart(2, "0")}`}
-          </span>
-        ) : null}
-      </div>
-
-      {/* Full preview — only fetched/rendered once expanded */}
-      {expanded && (
-        <div className="border-b border-border">
-          {hasMerchantLocation && hasDropoffLocation ? (
-            <OrderRouteMap
-              merchant={{ lat: merchant.lat, lng: merchant.lng, label: merchant.business_name ?? "Pickup" }}
-              customer={{ lat: dropoff.lat, lng: dropoff.lng, label: dropoff.formatted ?? "Drop-off" }}
-              rider={riderLocation}
-              routePolyline={fullTripRoute.data?.polyline ?? pickupRoute.data?.polyline}
-              className="h-56 w-full rounded-none border-0"
-            />
-          ) : (
-            <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
-              Location data unavailable for this order
-            </div>
-          )}
-
-          <div className="space-y-3 p-4">
-            {acceptDeclineButtons}
-
-            <div className="space-y-2 border-t border-border pt-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Merchant</p>
-              <p className="text-sm font-semibold">{merchant?.business_name ?? "Store"}</p>
-              <p className="text-xs text-muted-foreground">{merchant?.address_text ?? "Address not set"}</p>
-              {job.prep_time_mins != null && (
-                <p className="text-xs text-muted-foreground">~{job.prep_time_mins} min prep time</p>
-              )}
-            </div>
-
-            <div className="space-y-2 border-t border-border pt-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Customer drop-off</p>
-              <p className="text-sm font-semibold">{dropoff?.formatted ?? "Address to follow"}</p>
-              {dropoff?.landmark && <p className="text-xs text-muted-foreground">Landmark: {dropoff.landmark}</p>}
-              {job.profiles?.full_name && (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <User className="size-3" /> {job.profiles.full_name}
-                  {job.profiles?.phone && (
-                    <>
-                      <Phone className="ml-1.5 size-3" /> {job.profiles.phone}
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
-              {pickupRoute.isLoading && <span>Calculating route…</span>}
-              {pickupRoute.data && (
-                <span>{(pickupRoute.data.distanceMeters / 1000).toFixed(1)} km to pickup · ~{Math.round(pickupRoute.data.durationSeconds / 60)} min</span>
-              )}
-              {fullTripRoute.data && (
-                <span>{(fullTripRoute.data.distanceMeters / 1000).toFixed(1)} km total trip</span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="p-4">
-        <p className="text-base font-bold">{merchant?.business_name ?? "Store"}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {merchant?.address_text ?? "Pickup address to follow"}
-        </p>
-        <p className="mt-3 font-display text-lg font-extrabold text-primary">
-          {naira(job.delivery_fee_kobo)}
-        </p>
-
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-3 flex w-full items-center justify-center gap-1 rounded-lg border border-border py-2 text-xs font-semibold text-muted-foreground"
-        >
-          {expanded ? (
-            <>
-              Hide full details <ChevronUp className="size-3.5" />
-            </>
-          ) : (
-            <>
-              View route &amp; details <ChevronDown className="size-3.5" />
-            </>
-          )}
-        </button>
-
-        <div className="mt-4">{acceptDeclineButtons}</div>
-      </div>
-    </Panel>
-  );
-}
-
-// ── Current Job Card (with Visual Progress) ──
+// ── Current Job Card (Mission screen, with Visual Progress) ──
+// This is the rider's single workspace from the moment an offer is
+// accepted (status = rider_assigned) until delivery is complete. There
+// is no separate accept/confirm screen before this — acceptOffer() is
+// the only acceptance step in the journey.
 
 function CurrentJobCard({
   job,
   riderLocation,
   onAdvance,
+  onDecline,
 }: {
   job: any;
   riderLocation?: { lat: number; lng: number } | null | undefined;
   onAdvance: (orderId: string, status: string) => void;
+  onDecline: () => void;
 }) {
   const currentStep = STATUS_TO_STEP[job.status] || "assigned";
   const stepIndex = JOURNEY_STEPS.findIndex(s => s.id === currentStep);
   const isDelivered = job.status === "delivered";
   
   const action = STEP_ACTIONS[currentStep];
-  const [arrived, setArrived] = useState(false);
 
-  // Show arrival step if heading to store and not yet arrived
-  const showArrivalStep = job.status === "rider_en_route_to_merchant" && !arrived;
+  // "Arrived at store" / "waiting for merchant" is driven off the real
+  // order.status, not local component state. The rider taps "heading to
+  // store" -> status becomes rider_en_route_to_merchant. Once the
+  // merchant has actually marked the order ready (status flips to
+  // ready_for_pickup, which also generates the pickup code server-side),
+  // the rider moves straight to code entry. If the rider is en route but
+  // the merchant hasn't hit "ready" yet, show the waiting state — but
+  // this is now a read of live server state on every refetch (every 5s),
+  // not a one-way local flag that can get stuck.
+  const isWaitingForMerchant = job.status === "rider_en_route_to_merchant";
 
   // Calculate progress percentage
   const progress = isDelivered ? 100 : Math.round((stepIndex / (JOURNEY_STEPS.length - 1)) * 100);
@@ -1000,35 +802,17 @@ function CurrentJobCard({
           <ActiveRouteMap job={job} riderLocation={riderLocation} />
         )}
 
-        {/* Action Button */}
+        {/* Action Button — driven entirely off job.status, refetched every
+            5s, so this can never get stuck the way a local flag could. */}
         {!isDelivered ? (
           <div>
-            {showArrivalStep ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  setArrived(true);
-                  try {
-                    const { logRiderArrival } = await import("@/lib/rider-arrival.functions");
-                    await logRiderArrival({ data: { orderId: job.id, leg: "merchant" } });
-                  } catch {
-                    // Non-critical — arrival logging shouldn't block the rider's flow.
-                  }
-                }}
-                className="w-full rounded-xl bg-accent py-3.5 text-sm font-bold text-accent-foreground"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <MapPin className="size-4" />
-                  I've arrived at the store
-                </span>
-              </button>
-            ) : job.status === "rider_en_route_to_merchant" && arrived ? (
-              <div className="rounded-xl bg-secondary p-3.5 text-center text-sm text-muted-foreground">
-                <Loader2 className="mx-auto mb-1 size-4 animate-spin" />
-                Waiting for the merchant to confirm the order is ready…
-              </div>
-            ) : job.status === "ready_for_pickup" ? (
+            {job.status === "ready_for_pickup" ? (
+              // Merchant has already confirmed ready (this status only
+              // exists once they have — it's also what generates the
+              // pickup code). Go straight to code entry, no waiting screen.
               <PickupCodeEntry orderId={job.id} onVerified={() => onAdvance(job.id, "picked_up")} />
+            ) : isWaitingForMerchant ? (
+              <WaitingForMerchant orderId={job.id} />
             ) : action && action.nextStep ? (
               <button
                 type="button"
@@ -1066,8 +850,45 @@ function CurrentJobCard({
             </p>
           </div>
         )}
+
+        {/* Back out — only available before pickup (matches rider_decline_order's allowed statuses) */}
+        {!isDelivered && job.status !== "picked_up" && job.status !== "rider_en_route_to_customer" && (
+          <button
+            type="button"
+            onClick={onDecline}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-2.5 text-xs font-semibold text-muted-foreground"
+          >
+            <X className="size-3.5" strokeWidth={2.5} />
+            Can't make this delivery
+          </button>
+        )}
       </div>
     </Panel>
+  );
+}
+
+// ── Waiting-for-merchant state ── shown only while job.status is
+// 'rider_en_route_to_merchant'. The moment the merchant marks the order
+// ready, status flips to 'ready_for_pickup' server-side and the next
+// 5s refetch swaps this out for PickupCodeEntry automatically — no
+// rider action and no local state required.
+function WaitingForMerchant({ orderId }: { orderId: string }) {
+  const loggedRef = useRef(false);
+  useEffect(() => {
+    if (loggedRef.current) return;
+    loggedRef.current = true;
+    import("@/lib/rider-arrival.functions")
+      .then(({ logRiderArrival }) => logRiderArrival({ data: { orderId, leg: "merchant" } }))
+      .catch(() => {
+        // Non-critical — arrival logging shouldn't block the rider's flow.
+      });
+  }, [orderId]);
+
+  return (
+    <div className="rounded-xl bg-secondary p-3.5 text-center text-sm text-muted-foreground">
+      <Loader2 className="mx-auto mb-1 size-4 animate-spin" />
+      Heading to the store — you'll get a pickup code once it's ready
+    </div>
   );
 }
 
