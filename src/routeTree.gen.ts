@@ -16,6 +16,7 @@ import { Route as HelpRouteImport } from './routes/help'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
@@ -95,6 +96,11 @@ const PartnersRoute = PartnersRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RefundPolicyRoute = RefundPolicyRouteImport.update({
+  id: '/refund-policy',
+  path: '/refund-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -333,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
+  '/refund-policy': typeof RefundPolicyRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/admin/admins': typeof AdminAdminsRoute
@@ -387,6 +394,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
+  '/refund-policy': typeof RefundPolicyRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/admin/admins': typeof AdminAdminsRoute
@@ -442,6 +450,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
+  '/refund-policy': typeof RefundPolicyRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
   '/admin/admins': typeof AdminAdminsRoute
@@ -498,6 +507,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/partners'
     | '/privacy'
+    | '/refund-policy'
     | '/register'
     | '/terms'
     | '/admin/admins'
@@ -552,6 +562,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/partners'
     | '/privacy'
+    | '/refund-policy'
     | '/register'
     | '/terms'
     | '/admin/admins'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/partners'
     | '/privacy'
+    | '/refund-policy'
     | '/register'
     | '/terms'
     | '/admin/admins'
@@ -661,6 +673,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PartnersRoute: typeof PartnersRoute
   PrivacyRoute: typeof PrivacyRoute
+  RefundPolicyRoute: typeof RefundPolicyRoute
   RegisterRoute: typeof RegisterRoute
   TermsRoute: typeof TermsRoute
   AdminAdminsRoute: typeof AdminAdminsRoute
@@ -756,6 +769,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/refund-policy': {
+      id: '/refund-policy'
+      path: '/refund-policy'
+      fullPath: '/refund-policy'
+      preLoaderRoute: typeof RefundPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -1096,6 +1116,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PartnersRoute: PartnersRoute,
   PrivacyRoute: PrivacyRoute,
+  RefundPolicyRoute: RefundPolicyRoute,
   RegisterRoute: RegisterRoute,
   TermsRoute: TermsRoute,
   AdminAdminsRoute: AdminAdminsRoute,
