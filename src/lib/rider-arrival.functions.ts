@@ -29,6 +29,33 @@ export const logRiderArrival = createServerFn({ method: "POST" })
   });
 
 /**
+ * Lets a rider back out of an order already assigned to them (direct
+ * assignment or post-acceptance). Runs as SECURITY DEFINER because the
+ * "Rider can update assigned orders" RLS policy has no WITH CHECK clause,
+ * so a client-side update that nulls rider_id re-evaluates the USING
+ * clause against the *new* row (auth.uid() = null) and is rejected.
+ * Resets the order to 'preparing' with no rider, which trg_auto_dispatch_on_preparing
+ * picks up to re-dispatch automatically.
+ */
+export const riderDeclineOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({
+        orderId: z.string().uuid(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { error } = await supabase.rpc("rider_decline_order", {
+      p_order_id: data.orderId,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
  * Verifies the 4-digit pickup code the merchant reads to the rider once the
  * order hits 'ready_for_pickup'. On success advances the order to 'picked_up'.
  */
