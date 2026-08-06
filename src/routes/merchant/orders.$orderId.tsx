@@ -75,7 +75,7 @@ function MerchantOrderDetailPage() {
           cancel_reason,
           customer_id,
           profiles:customer_id ( full_name, phone ),
-          addresses ( formatted, landmark, lat, lng ),
+          addresses:delivery_address_id ( formatted, landmark, lat, lng ),
           riders ( current_lat, current_lng ),
           order_items ( id, quantity, unit_price_kobo, products ( name ) )
         `)
