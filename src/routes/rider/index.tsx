@@ -29,6 +29,7 @@ import { useRiderLocationTracking } from "@/hooks/use-rider-location";
 import { naira } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { OrderRouteMap } from "@/components/zentra/map/order-route-map";
+import { launchGoogleMapsNavigation } from "@/lib/google-maps-launcher";
 
 export const Route = createFileRoute("/rider/")({
   head: () => ({
@@ -797,6 +798,12 @@ function CurrentJobCard({
           )}
         </div>
 
+        {/* Navigate in Google Maps — Zentra owns the workflow, Google Maps
+            owns turn-by-turn. Destination follows the current leg: the
+            store before pickup, the customer after. Opens directly on
+            coordinates, no copy/paste required of the rider. */}
+        <NavigateButton job={job} />
+
         {/* Route map — always visible, follows the current delivery leg */}
         {job.merchants?.lat != null && job.merchants?.lng != null && job.addresses?.lat != null && job.addresses?.lng != null && (
           <ActiveRouteMap job={job} riderLocation={riderLocation} />
@@ -948,6 +955,33 @@ function PickupCodeEntry({ orderId, onVerified }: { orderId: string; onVerified:
         Confirm pickup
       </button>
     </div>
+  );
+}
+
+// ── Navigate button — launches Google Maps for turn-by-turn guidance ──
+// Zentra never builds its own turn-by-turn engine; this hands off to
+// Google Maps the moment the rider needs to actually drive somewhere.
+// Destination tracks the current leg, same rule ActiveRouteMap uses:
+// merchant before pickup, customer after.
+function NavigateButton({ job }: { job: any }) {
+  const isHeadingToCustomer = job.status === "picked_up" || job.status === "rider_en_route_to_customer";
+
+  const destination = isHeadingToCustomer
+    ? { lat: job.addresses?.lat, lng: job.addresses?.lng, label: job.addresses?.landmark ?? "Drop-off" }
+    : { lat: job.merchants?.lat, lng: job.merchants?.lng, label: job.merchants?.business_name ?? "Store" };
+
+  const hasCoords = Number.isFinite(destination.lat) && Number.isFinite(destination.lng);
+  if (!hasCoords || job.status === "delivered") return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => launchGoogleMapsNavigation(destination as { lat: number; lng: number; label?: string })}
+      className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 py-2.5 text-xs font-bold text-primary"
+    >
+      <Navigation className="size-3.5" strokeWidth={2.5} />
+      Navigate to {isHeadingToCustomer ? "customer" : "store"} in Google Maps
+    </button>
   );
 }
 
