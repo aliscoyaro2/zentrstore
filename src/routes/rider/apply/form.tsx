@@ -142,8 +142,8 @@ function RiderApplyForm() {
     setBusy(true);
     try {
       if (step === 1) {
-        if (!fullName || !phone || !dob || !gender || !address || !lga || !photoUrl) {
-          toast.error("Please complete every field in this step, including your photo.");
+        if (!fullName || !phone || !dob || !gender || !address || !lga) {
+          toast.error("Please complete every field in this step.");
           setBusy(false);
           return;
         }
@@ -162,8 +162,8 @@ function RiderApplyForm() {
           },
         });
       } else if (step === 2) {
-        if (!vehicleType || !plate || !licenseNumber || !licenseFrontUrl || !licenseBackUrl || !insuranceUrl || !ownership) {
-          toast.error("Please complete every field in this step, including all document uploads.");
+        if (!vehicleType || !plate || !licenseNumber || !ownership) {
+          toast.error("Please complete every field in this step.");
           setBusy(false);
           return;
         }
