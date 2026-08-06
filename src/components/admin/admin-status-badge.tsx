@@ -10,7 +10,9 @@ const TONE_BY_STATUS: Record<string, "neutral" | "success" | "warning" | "danger
   rider_en_route_to_merchant: "warning",
   picked_up: "warning",
   rider_en_route_to_customer: "warning",
+  ready_for_pickup: "warning",
   delivered: "success",
+  completed: "success",
   cancelled: "danger",
   refunded: "danger",
   // approvals
