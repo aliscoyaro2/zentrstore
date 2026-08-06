@@ -119,10 +119,16 @@ export const approveRiderApplication = createServerFn({ method: "POST" })
       `${getSiteUrl()}/auth/set-password`,
     );
 
+    // Upsert, not update: nothing in the database auto-creates a `profiles`
+    // row when an auth user is created (there's no DB trigger on
+    // auth.users), so for a brand-new applicant this row may not exist yet.
+    // A plain `.update()` would silently affect 0 rows in that case, then
+    // the `riders` insert below would fail its FK to `profiles.id` — which
+    // is exactly the "violates foreign key constraint riders_id_fkey" error.
+    // Upsert guarantees the row exists either way.
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({ role: "rider", full_name: app.full_name, phone: app.phone, email: app.email })
-      .eq("id", riderId);
+      .upsert({ id: riderId, role: "rider", full_name: app.full_name, phone: app.phone, email: app.email });
     if (profileError) throw new Error(profileError.message);
 
     const { error: riderError } = await supabaseAdmin.from("riders").insert({
