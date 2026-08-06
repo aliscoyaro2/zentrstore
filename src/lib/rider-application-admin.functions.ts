@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getSiteUrl } from "@/lib/site-url";
+import { getOrInviteUser } from "@/lib/application-approval-auth";
 
 /**
  * Admin-only server functions for reviewing rider applications. Every
@@ -17,6 +18,7 @@ async function assertIsAdmin(supabase: import("@supabase/supabase-js").SupabaseC
     throw new Response("Forbidden", { status: 403 });
   }
 }
+
 
 const DOCUMENT_COLUMNS = [
   "photo_url",
@@ -103,20 +105,19 @@ export const approveRiderApplication = createServerFn({ method: "POST" })
     if (!app) throw new Response("Not found", { status: 404 });
     if (app.status !== "submitted") throw new Error("Only submitted applications can be approved.");
 
-    // Create the real account now — this is the moment the applicant
-    // becomes a rider. Supabase's invite email (through the project's
-    // Brevo SMTP) links to /auth/set-password, where they choose their own
-    // password before ever landing on the dashboard.
-    const { data: invited, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(app.email, {
-      data: { full_name: app.full_name, role: "rider" },
-      redirectTo: `${getSiteUrl()}/auth/set-password`,
-    });
-
-    if (inviteError || !invited.user) {
-      throw new Error(inviteError?.message ?? "Could not create the rider account.");
-    }
-
-    const riderId = invited.user.id;
+    // Activate the real account now — this is the moment the applicant
+    // becomes a rider. The auth user usually already exists (created
+    // silently during the application's OTP-verification step), so this
+    // reuses it rather than trying to invite a duplicate. Either way, the
+    // applicant gets a "set your password" email (Brevo SMTP) linking to
+    // /auth/set-password, where they choose their own password before ever
+    // landing on the dashboard.
+    const riderId = await getOrInviteUser(
+      supabaseAdmin,
+      app.email,
+      { full_name: app.full_name, role: "rider" },
+      `${getSiteUrl()}/auth/set-password`,
+    );
 
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
