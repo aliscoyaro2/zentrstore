@@ -54,7 +54,7 @@ function OrdersPage() {
           <EmptyState title="No orders yet" body="When you place an order it will show up here." />
         ) : (
           (orders.data ?? []).map((o) => (
-            <Link key={o.id} to="/orders/$orderId" params={{ orderId: o.id }} className="block">
+            <Link key={o.id} to="/customer/orders/$orderId" params={{ orderId: o.id }} className="block">
               <Panel className="flex items-center justify-between p-4">
                 <div className="min-w-0">
                   <p className="truncate font-semibold leading-tight">
