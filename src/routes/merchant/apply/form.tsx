@@ -190,7 +190,7 @@ function MerchantApplyForm() {
           },
         });
       } else if (step === 4) {
-        if (!ownerIdUrl || !referral || !agreed || !signatureName) {
+        if (!referral || !agreed || !signatureName) {
           toast.error("Please complete every field and sign the agreement to continue.");
           setBusy(false);
           return;
