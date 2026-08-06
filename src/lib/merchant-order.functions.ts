@@ -218,6 +218,42 @@ export const merchantMarkReady = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Second, later merchant action — distinct from merchantMarkReady above.
+ * merchantMarkReady ("Mark Ready for Pickup") sets 'preparing' and kicks
+ * off dispatch so a rider starts traveling while food is still cooking.
+ * This function is for the actual moment the food is done and the rider
+ * is at the counter: it flips 'preparing' -> 'ready_for_pickup', which a
+ * DB trigger (generate_pickup_code) uses to stamp a fresh 4-digit
+ * pickup_code onto the order. The merchant reads that code aloud to the
+ * rider, who must enter it correctly (verify_pickup_code RPC) before the
+ * order can move to 'picked_up'.
+ */
+export const merchantConfirmReadyForPickup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ orderId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: code, error } = await supabase.rpc("merchant_confirm_ready_for_pickup", {
+      p_order_id: data.orderId,
+    });
+
+    if (error) throw new Error(error.message);
+
+    await logOrderEvent({
+      data: {
+        orderId: data.orderId,
+        eventType: "PickupCodeIssued",
+        eventData: {},
+        actorType: "merchant",
+        actorId: userId,
+      },
+    });
+
+    return { success: true, pickupCode: code as string };
+  });
+
 export const getMerchantOrders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
